@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+
+<html lang="en-us">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+
+  <title>Time Shooter 3: SWAT</title>
+
+  <script src="crazygames-sdk-v3.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #unity-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      display: block;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: #000;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      z-index: 10;
+    }
+
+    #loading-text {
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+
+    #progress {
+      width: min(420px, 80vw);
+      height: 8px;
+      background: #333;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background: #fff;
+      transition: width .15s;
+    }
+
+    #error {
+      display: none;
+      max-width: 80vw;
+      text-align: center;
+      color: #f55;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+
+</head>
+
+<body>
+
+<div id="unity-container">
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+
+  <div id="loading">
+    <div id="loading-text">Loading game...</div>
+    <div id="progress">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="error"></div>
+  </div>
+</div>
+
+<script>
+  /* -------------------------------------------------------
+     CrazyGames URL spoof
+  ------------------------------------------------------- */
+
+  Object.defineProperty(document, 'URL', {
+    get: () => 'https://www.crazygames.com/game/space-waves',
+    configurable: true
+  });
+
+  Object.defineProperty(document, 'documentURI', {
+    get: () => 'https://www.crazygames.com/game/space-waves',
+    configurable: true
+  });
+
+
+  /* -------------------------------------------------------
+     CrazyGames Unity shim
+  ------------------------------------------------------- */
+
+  var msgQueue = [];
+  var gameInstance = null;
+
+  function sendToUnity(obj, method, param) {
+    if (gameInstance) {
+      try {
+        gameInstance.SendMessage(obj, method, param);
+      } catch (e) {
+        console.warn('[CrazyGames] SendMessage failed:', e);
+      }
+    } else {
+      msgQueue.push([obj, method, param]);
+    }
+  }
+
+  window.unityInstance = {
+    SendMessage: sendToUnity
+  };
+
+  var sdk = {
+    init: function(cfg) {
+      if (cfg && cfg.crazySDKObjectName) {
+        sendToUnity(cfg.crazySDKObjectName, 'OnSDKInit');
+      }
+      return true;
+    },
+
+    gameplayStart: function() {
+      return true;
+    },
+
+    gameplayStop: function() {
+      return true;
+    },
+
+    happytime: function() {
+      return true;
+    },
+
+    requestAd: function() {
+      setTimeout(function() {
+        sendToUnity('CrazyGames', 'OnAdCompleted');
+        sendToUnity('CrazyGames', 'OnAdFinished', 'true');
+      }, 50);
+
+      return true;
+    },
+
+    requestBanners: function() {
+      return true;
+    },
+
+    requestInviteUrl: function() {
+      return true;
+    },
+
+    screenshotReceived: function() {
+      return true;
+    }
+  };
+
+  window.Crazygames = sdk;
+  window.CrazyGames = sdk;
+
+
+  /* -------------------------------------------------------
+     WebGL context handling
+  ------------------------------------------------------- */
+
+  document
+    .getElementById('unity-canvas')
+    .addEventListener('webglcontextlost', function(e) {
+      e.preventDefault();
+    });
+
+
+  /* -------------------------------------------------------
+     Split WASM loader
+  ------------------------------------------------------- */
+
+  const BUILD = 'Build';
+
+  const WASM_PARTS = [
+    '589a3b8115707ce7d4adbce14ec02bfd.wasm.part000',
+    '589a3b8115707ce7d4adbce14ec02bfd.wasm.part001'
+  ];
+
+  const WASM_NAME =
+    '589a3b8115707ce7d4adbce14ec02bfd.wasm';
+
+  const FRAMEWORK =
+    '10cac57329f4c7defb2b2d7128eb69b1.framework.js';
+
+  const DATA =
+    '1a924ebd3a86d27369987b7840d5862a.data';
+
+  const LOADER =
+    'cfe17afd7bc5f0045487e0e52c4d5f74.loader.js';
+
+
+  function setProgress(value, text) {
+    document.getElementById('progress-bar').style.width =
+      Math.max(0, Math.min(100, value)) + '%';
+
+    if (text) {
+      document.getElementById('loading-text').textContent = text;
+    }
+  }
+
+
+  function showError(error) {
+    console.error(error);
+
+    document.getElementById('loading-text').style.display = 'none';
+    document.getElementById('progress').style.display = 'none';
+
+    const el = document.getElementById('error');
+    el.style.display = 'block';
+    el.textContent =
+      'Game failed to load.\n\n' +
+      (error && error.stack ? error.stack : error);
+  }
+
+
+  async function loadSplitWasm() {
+    let total = 0;
+    const chunks = [];
+
+    for (let i = 0; i < WASM_PARTS.length; i++) {
+      const url = BUILD + '/' + WASM_PARTS[i];
+
+      setProgress(
+        (i / WASM_PARTS.length) * 40,
+        'Loading WASM part ' + (i + 1) + '/' + WASM_PARTS.length + '...'
+      );
+
+      const response = await fetch(url, {
+        cache: 'force-cache'
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          'Failed to load ' +
+          WASM_PARTS[i] +
+          ' (' +
+          response.status +
+          ')'
+        );
+      }
+
+      const buffer = await response.arrayBuffer();
+
+      chunks.push(new Uint8Array(buffer));
+      total += buffer.byteLength;
+    }
+
+    setProgress(45, 'Combining WASM...');
+
+    const wasm = new Uint8Array(total);
+
+    let offset = 0;
+
+    for (const chunk of chunks) {
+      wasm.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    const blob = new Blob([wasm], {
+      type: 'application/wasm'
+    });
+
+    const wasmURL = URL.createObjectURL(blob);
+
+    console.log(
+      '[Split WASM] Combined',
+      WASM_PARTS.length,
+      'parts:',
+      total,
+      'bytes'
+    );
+
+    return wasmURL;
+  }
+
+
+  async function startUnity() {
+    try {
+      setProgress(5, 'Preparing game...');
+
+      /*
+       * Build the WASM Blob first.
+       */
+      const wasmURL = await loadSplitWasm();
+
+      setProgress(50, 'Loading Unity...');
+
+      /*
+       * Load Unity's generated loader.
+       */
+      const script = document.createElement('script');
+
+      script.src = BUILD + '/' + LOADER;
+
+      script.onload = function() {
+        setProgress(60, 'Starting Unity...');
+
+        const config = {
+          dataUrl: BUILD + '/' + DATA,
+
+          frameworkUrl: BUILD + '/' + FRAMEWORK,
+
+          codeUrl: wasmURL,
+
+          streamingAssetsUrl: 'StreamingAssets',
+
+          companyName: 'GoGoMan',
+
+          productName: 'Time Shooter 3 SWAT',
+
+          productVersion: '1.0',
+
+          showBanner: function(msg, type) {
+            console.log('[Unity]', type, msg);
+          }
+        };
+
+        const canvas = document.getElementById('unity-canvas');
+
+        createUnityInstance(canvas, config, function(progress) {
+          setProgress(
+            60 + progress * 40,
+            'Loading game... ' +
+            Math.round(progress * 100) +
+            '%'
+          );
+        })
+        .then(function(instance) {
+
+          gameInstance = instance;
+
+          window.unityInstance = instance;
+
+          /*
+           * Flush messages that happened before Unity loaded.
+           */
+          for (const msg of msgQueue) {
+            try {
+              instance.SendMessage(
+                msg[0],
+                msg[1],
+                msg[2]
+              );
+            } catch (e) {
+              console.warn(
+                '[CrazyGames] Queued message failed:',
+                e
+              );
+            }
+          }
+
+          msgQueue.length = 0;
+
+          setProgress(100, 'Game loaded');
+
+          setTimeout(function() {
+            document.getElementById('loading').style.display = 'none';
+          }, 500);
+
+          console.log('[Unity] Game started');
+
+        })
+        .catch(function(error) {
+          showError(error);
+        });
+      };
+
+      script.onerror = function() {
+        showError(
+          'Could not load Unity loader:\n' +
+          BUILD + '/' + LOADER
+        );
+      };
+
+      document.head.appendChild(script);
+
+    } catch (error) {
+      showError(error);
+    }
+  }
+
+
+  /*
+   * Start after the page is ready.
+   */
+  startUnity();
+
+</script>
+
+</body>
+</html>

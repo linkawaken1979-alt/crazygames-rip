@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+```
+<meta name="viewport"
+      content="width=device-width, maximum-scale=1.0,
+      initial-scale=1.0, user-scalable=no">
+
+<title>Supermarket Simulator</title>
+
+<style>
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+    }
+
+    #gameContainer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    #unity-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #000;
+        outline: none;
+    }
+
+    #loadingScreen {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        background: #000;
+
+        opacity: 1;
+        visibility: visible;
+
+        transition:
+            opacity 0.5s ease,
+            visibility 0.5s ease;
+    }
+
+    #loadingScreen.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    #loadingBox {
+        width: min(520px, 80vw);
+        text-align: center;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+    #loadingTitle {
+        color: #fff;
+        font-size: 28px;
+        font-weight: 600;
+        margin-bottom: 24px;
+    }
+
+    #loadingStatus {
+        color: #aaa;
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+
+    #loadingBarOuter {
+        width: 100%;
+        height: 10px;
+        background: #222;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+
+    #loadingBar {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+        border-radius: 5px;
+        transition: width 0.15s ease;
+    }
+
+    #loadingPercent {
+        color: #fff;
+        font-size: 14px;
+        margin-top: 12px;
+    }
+
+    #loadingTip {
+        color: #666;
+        font-size: 12px;
+        margin-top: 18px;
+    }
+
+    #sdkStatus,
+    #loader,
+    #ziggyLoader {
+        display: none !important;
+    }
+</style>
+```
+
+</head>
+
+<body>
+
+<div id="gameContainer">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+
+<div id="loadingScreen">
+    <div id="loadingBox">
+
+```
+    <div id="loadingTitle">
+        Supermarket Simulator
+    </div>
+
+    <div id="loadingStatus">
+        Preparing game...
+    </div>
+
+    <div id="loadingBarOuter">
+        <div id="loadingBar"></div>
+    </div>
+
+    <div id="loadingPercent">
+        0%
+    </div>
+
+    <div id="loadingTip">
+        Please wait while the game loads.
+    </div>
+
+</div>
+```
+
+</div>
+
+<script>
+(function () {
+
+    var CRAZY_GAMES_URL =
+        "https://www.crazygames.com/game/supermarket-together";
+
+    try {
+
+        Object.defineProperty(document, "URL", {
+            get: function () {
+                return CRAZY_GAMES_URL;
+            },
+            configurable: true
+        });
+
+        Object.defineProperty(document, "documentURI", {
+            get: function () {
+                return CRAZY_GAMES_URL;
+            },
+            configurable: true
+        });
+
+    } catch (e) {
+
+        console.warn(
+            "[CrazyGames Shim] Could not override document URL:",
+            e
+        );
+    }
+
+    var msgQueue = [];
+    var gameInstance = null;
+
+    function sendToUnity(obj, method, param) {
+
+        if (gameInstance) {
+
+            try {
+
+                gameInstance.SendMessage(
+                    obj,
+                    method,
+                    param
+                );
+
+            } catch (e) {
+
+                console.warn(
+                    "[CrazyGames Shim] SendMessage failed:",
+                    e
+                );
+            }
+
+        } else {
+
+            msgQueue.push([
+                obj,
+                method,
+                param
+            ]);
+        }
+    }
+
+    function setGameInstance(instance) {
+
+        gameInstance = instance;
+
+        while (msgQueue.length > 0) {
+
+            var msg = msgQueue.shift();
+
+            try {
+
+                gameInstance.SendMessage(
+                    msg[0],
+                    msg[1],
+                    msg[2]
+                );
+
+            } catch (e) {
+
+                console.warn(
+                    "[CrazyGames Shim] Queued message failed:",
+                    e
+                );
+            }
+        }
+    }
+
+    window.unityInstance = {
+        SendMessage: sendToUnity
+    };
+
+    window.__CrazyGamesShim = {
+        sendToUnity: sendToUnity,
+        setGameInstance: setGameInstance
+    };
+
+    var sdk = {
+
+        init: function (cfg) {
+
+            console.log(
+                "[CrazyGames Shim] init"
+            );
+
+            if (
+                cfg &&
+                cfg.crazySDKObjectName
+            ) {
+
+                sendToUnity(
+                    cfg.crazySDKObjectName,
+                    "OnSDKInit"
+                );
+            }
+
+            return true;
+        },
+
+        gameplayStart: function () {
+
+            console.log(
+                "[CrazyGames Shim] gameplayStart"
+            );
+
+            return true;
+        },
+
+        gameplayStop: function () {
+
+            console.log(
+                "[CrazyGames Shim] gameplayStop"
+            );
+
+            return true;
+        },
+
+        happytime: function () {
+            return true;
+        },
+
+        requestAd: function () {
+
+            console.log(
+                "[CrazyGames Shim] requestAd"
+            );
+
+            setTimeout(function () {
+
+                sendToUnity(
+                    "CrazyGames",
+                    "OnAdCompleted"
+                );
+
+                sendToUnity(
+                    "CrazyGames",
+                    "OnAdFinished",
+                    "true"
+                );
+
+            }, 50);
+
+            return true;
+        },
+
+        requestBanners: function () {
+            return true;
+        },
+
+        requestInviteUrl: function () {
+            return true;
+        },
+
+        screenshotReceived: function () {
+            return true;
+        }
+    };
+
+    window.Crazygames = sdk;
+    window.CrazyGames = sdk;
+    window.CrazyGames.SDK = sdk;
+
+    var canvas =
+        document.getElementById("unity-canvas");
+
+    if (canvas) {
+
+        canvas.addEventListener(
+            "webglcontextlost",
+            function (event) {
+
+                event.preventDefault();
+
+                console.warn(
+                    "[Unity] WebGL context lost"
+                );
+            }
+        );
+    }
+
+    console.log(
+        "[CrazyGames Shim] Loaded"
+    );
+
+})();
+</script>
+
+<script>
+(function () {
+
+    "use strict";
+
+    var WASM_PARTS = [
+        "Build/59b76b416e7329d07442a6fafdde0699.wasm.part001",
+        "Build/59b76b416e7329d07442a6fafdde0699.wasm.part002"
+    ];
+
+    var ORIGINAL_WASM =
+        "59b76b416e7329d07442a6fafdde0699.wasm";
+
+    var EXPECTED_SIZE =
+        32824169;
+
+    var BUILD = new URL(
+        "./Build/",
+        window.location.href
+    ).href;
+
+    var loadingScreen =
+        document.getElementById("loadingScreen");
+
+    var loadingStatus =
+        document.getElementById("loadingStatus");
+
+    var loadingBar =
+        document.getElementById("loadingBar");
+
+    var loadingPercent =
+        document.getElementById("loadingPercent");
+
+    function updateLoading(percent, status) {
+
+        percent = Math.max(
+            0,
+            Math.min(100, percent)
+        );
+
+        loadingBar.style.width =
+            percent + "%";
+
+        loadingPercent.textContent =
+            Math.round(percent) + "%";
+
+        if (status) {
+
+            loadingStatus.textContent =
+                status;
+        }
+    }
+
+    function showError(error) {
+
+        console.error(
+            "[Loader] Error:",
+            error
+        );
+
+        loadingStatus.textContent =
+            "Loading failed.";
+
+        loadingPercent.textContent =
+            "";
+
+        loadingBar.style.width =
+            "0%";
+
+        var errorText =
+            document.createElement("div");
+
+        errorText.style.color =
+            "#ff4444";
+
+        errorText.style.fontSize =
+            "13px";
+
+        errorText.style.marginTop =
+            "20px";
+
+        errorText.style.whiteSpace =
+            "pre-wrap";
+
+        errorText.textContent =
+            String(error);
+
+        document
+            .getElementById("loadingBox")
+            .appendChild(errorText);
+    }
+
+    function hideLoadingScreen() {
+
+        updateLoading(
+            100,
+            "Game ready!"
+        );
+
+        setTimeout(function () {
+
+            loadingScreen.classList.add(
+                "hidden"
+            );
+
+        }, 300);
+    }
+
+    async function buildWasmBlob() {
+
+        var buffers = [];
+        var totalSize = 0;
+
+        for (
+            var i = 0;
+            i < WASM_PARTS.length;
+            i++
+        ) {
+
+            var part =
+                WASM_PARTS[i];
+
+            updateLoading(
+                (
+                    i /
+                    WASM_PARTS.length
+                ) * 45,
+                "Downloading game files..."
+            );
+
+            console.log(
+                "[WASM SplitLoader] Loading:",
+                part
+            );
+
+            var url =
+                new URL(
+                    part,
+                    document.baseURI
+                ).href;
+
+            var response =
+                await fetch(
+                    url,
+                    {
+                        cache: "no-store"
+                    }
+                );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Failed to load " +
+                    part +
+                    " (HTTP " +
+                    response.status +
+                    ")"
+                );
+            }
+
+            var buffer =
+                await response.arrayBuffer();
+
+            if (buffer.byteLength === 8795) {
+
+                throw new Error(
+                    "Server returned an error page " +
+                    "instead of " +
+                    part
+                );
+            }
+
+            if (buffer.byteLength === 0) {
+
+                throw new Error(
+                    part +
+                    " is empty."
+                );
+            }
+
+            buffers.push(buffer);
+
+            totalSize +=
+                buffer.byteLength;
+
+            updateLoading(
+                (
+                    (i + 1) /
+                    WASM_PARTS.length
+                ) * 45,
+                "Downloading game files..."
+            );
+
+            console.log(
+                "[WASM SplitLoader]",
+                part,
+                "-",
+                buffer.byteLength,
+                "bytes"
+            );
+        }
+
+        console.log(
+            "[WASM SplitLoader] Total:",
+            totalSize,
+            "bytes"
+        );
+
+        if (
+            totalSize !==
+            EXPECTED_SIZE
+        ) {
+
+            throw new Error(
+                "WASM size mismatch. Expected " +
+                EXPECTED_SIZE +
+                " bytes but received " +
+                totalSize +
+                " bytes."
+            );
+        }
+
+        updateLoading(
+            50,
+            "Rebuilding game..."
+        );
+
+        var blob =
+            new Blob(
+                buffers,
+                {
+                    type: "application/wasm"
+                }
+            );
+
+        var blobURL =
+            URL.createObjectURL(blob);
+
+        console.log(
+            "[WASM SplitLoader] WASM reconstructed successfully."
+        );
+
+        updateLoading(
+            55,
+            "Preparing Unity..."
+        );
+
+        return blobURL;
+    }
+
+    function installFetchRedirect(blobURL) {
+
+        var originalFetch =
+            window.fetch.bind(window);
+
+        window.fetch =
+            function (input, init) {
+
+                var requestURL = "";
+
+                if (
+                    typeof input === "string"
+                ) {
+
+                    requestURL = input;
+
+                } else if (
+                    input &&
+                    input.url
+                ) {
+
+                    requestURL = input.url;
+                }
+
+                if (
+                    requestURL &&
+                    (
+                        requestURL.endsWith(
+                            "/" + ORIGINAL_WASM
+                        ) ||
+                        requestURL.endsWith(
+                            ORIGINAL_WASM
+                        )
+                    )
+                ) {
+
+                    console.log(
+                        "[WASM SplitLoader] Redirecting fetch:",
+                        requestURL
+                    );
+
+                    input = blobURL;
+                }
+
+                return originalFetch(
+                    input,
+                    init
+                );
+            };
+    }
+
+    function installXHRRedirect(blobURL) {
+
+        var originalOpen =
+            XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open =
+            function (
+                method,
+                url,
+                async,
+                user,
+                password
+            ) {
+
+                var newURL = url;
+
+                if (
+                    typeof url === "string" &&
+                    (
+                        url.endsWith(
+                            "/" + ORIGINAL_WASM
+                        ) ||
+                        url.endsWith(
+                            ORIGINAL_WASM
+                        )
+                    )
+                ) {
+
+                    console.log(
+                        "[WASM SplitLoader] Redirecting XHR:",
+                        url
+                    );
+
+                    newURL = blobURL;
+                }
+
+                return originalOpen.call(
+                    this,
+                    method,
+                    newURL,
+                    async,
+                    user,
+                    password
+                );
+            };
+    }
+
+    function loadUnityLoader() {
+
+        return new Promise(function (
+            resolve,
+            reject
+        ) {
+
+            updateLoading(
+                58,
+                "Starting Unity..."
+            );
+
+            var script =
+                document.createElement("script");
+
+            script.src =
+                BUILD +
+                "9928118c23077b7d30503c24e9a2c07b.loader.js";
+
+            script.onload =
+                function () {
+
+                    console.log(
+                        "[Unity] Loader loaded"
+                    );
+
+                    resolve();
+                };
+
+            script.onerror =
+                function () {
+
+                    reject(
+                        new Error(
+                            "Unity loader failed to load:\n" +
+                            script.src
+                        )
+                    );
+                };
+
+            document.head.appendChild(
+                script
+            );
+        });
+    }
+
+    function startUnity() {
+
+        updateLoading(
+            60,
+            "Loading Unity..."
+        );
+
+        var unityConfig = {
+
+            loaderUrl:
+                BUILD +
+                "9928118c23077b7d30503c24e9a2c07b.loader.js",
+
+            dataUrl:
+                BUILD +
+                "d453d022165281a587778942fb7c434f.data",
+
+            frameworkUrl:
+                BUILD +
+                "970cf5f8170e1a56b7e240f6869c1d5e.framework.js",
+
+            codeUrl:
+                BUILD +
+                ORIGINAL_WASM,
+
+            companyName:
+                "Supermarket Simulator",
+
+            productName:
+                "Supermarket Simulator",
+
+            productVersion:
+                "1.0",
+
+            showBanner:
+                function () {}
+        };
+
+        var canvas =
+            document.getElementById(
+                "unity-canvas"
+            );
+
+        if (!canvas) {
+
+            throw new Error(
+                "Unity canvas was not found."
+            );
+        }
+
+        if (
+            typeof createUnityInstance !==
+            "function"
+        ) {
+
+            throw new Error(
+                "createUnityInstance is not available."
+            );
+        }
+
+        console.log(
+            "[Unity] Starting Supermarket Simulator..."
+        );
+
+        createUnityInstance(
+            canvas,
+            unityConfig,
+            function (progress) {
+
+                var percent =
+                    60 +
+                    progress * 40;
+
+                updateLoading(
+                    percent,
+                    "Loading game..."
+                );
+
+                console.log(
+                    "[Unity] Loading:",
+                    Math.round(
+                        progress * 100
+                    ) + "%"
+                );
+
+            }
+        )
+        .then(function (instance) {
+
+            if (
+                window.__CrazyGamesShim
+            ) {
+
+                window
+                    .__CrazyGamesShim
+                    .setGameInstance(
+                        instance
+                    );
+            }
+
+            console.log(
+                "[Unity] Supermarket Simulator started."
+            );
+
+            hideLoadingScreen();
+
+        })
+        .catch(function (error) {
+
+            showError(error);
+        });
+    }
+
+    updateLoading(
+        0,
+        "Preparing game..."
+    );
+
+    buildWasmBlob()
+
+        .then(function (blobURL) {
+
+            installFetchRedirect(
+                blobURL
+            );
+
+            installXHRRedirect(
+                blobURL
+            );
+
+            console.log(
+                "[WASM SplitLoader] Redirects installed."
+            );
+
+            return loadUnityLoader();
+        })
+
+        .then(function () {
+
+            startUnity();
+        })
+
+        .catch(function (error) {
+
+            showError(error);
+        });
+
+})();
+</script>
+
+</body>
+</html>

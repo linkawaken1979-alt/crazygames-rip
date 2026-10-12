@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hazmob FPS</title>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #111;
+    }
+
+    #unity-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #111;
+    }
+
+    #loading-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #111;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
+
+    #loading-title {
+        font-size: 34px;
+        font-weight: bold;
+        margin-bottom: 30px;
+    }
+
+    #loading-bar-container {
+        width: min(500px, 75vw);
+        height: 14px;
+        background: #333;
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+    #loading-bar {
+        width: 0%;
+        height: 100%;
+        background: white;
+        border-radius: 20px;
+        transition: width 0.15s ease;
+    }
+
+    #loading-percent {
+        margin-top: 14px;
+        font-family: monospace;
+        font-size: 18px;
+    }
+
+    #loading-status {
+        margin-top: 8px;
+        color: #aaa;
+        font-size: 14px;
+    }
+
+    #error-screen {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        background: #111;
+        color: #ff6666;
+        font-family: monospace;
+        padding: 30px;
+        box-sizing: border-box;
+        white-space: pre-wrap;
+        overflow: auto;
+    }
+
+    #crazygames-banner {
+        position: fixed;
+        left: 50%;
+        bottom: 10px;
+        transform: translateX(-50%);
+        width: 320px;
+        height: 50px;
+        z-index: 5000;
+        display: none;
+        pointer-events: none;
+    }
+
+    #crazygames-banner img {
+        width: 320px;
+        height: 50px;
+        display: block;
+    }
+</style>
+
+</head>
+
+<body>
+
+<canvas id="unity-canvas" tabindex="-1"></canvas>
+
+<div id="loading-screen">
+    <div id="loading-title">Hazmob FPS</div>
+
+<div id="loading-bar-container">
+    <div id="loading-bar"></div>
+</div>
+
+<div id="loading-percent">0%</div>
+
+<div id="loading-status">
+    Initializing...
+</div>
+
+</div>
+
+<div id="error-screen"></div>
+
+<div id="crazygames-banner">
+    <img
+        id="crazygames-banner-image"
+        src="https://images.crazygames.com/crazygames-sdk/320x50.png"
+        width="320"
+        height="50"
+        alt=""
+    >
+</div>
+
+<!-- =========================================================
+     CRAZYGAMES URL SPOOF
+     ========================================================= -->
+
+<script>
+(function () {
+    "use strict";
+
+    try {
+        Object.defineProperty(document, "URL", {
+            get: function () {
+                return "https://www.crazygames.com/game/space-waves";
+            },
+            configurable: true
+        });
+
+        Object.defineProperty(document, "documentURI", {
+            get: function () {
+                return "https://www.crazygames.com/game/space-waves";
+            },
+            configurable: true
+        });
+
+    } catch (e) {
+        console.warn(
+            "[Hazmob] URL spoof failed:",
+            e
+        );
+    }
+})();
+</script>
+
+<!-- =========================================================
+     CRAZYGAMES SDK SHIM
+     ========================================================= -->
+
+<script>
+(function () {
+
+    "use strict";
+
+    var msgQueue = [];
+    var gameInstance = null;
+
+    function sendToUnity(obj, method, param) {
+
+        if (gameInstance) {
+
+            try {
+                gameInstance.SendMessage(
+                    obj,
+                    method,
+                    param
+                );
+
+            } catch (e) {
+
+                console.warn(
+                    "[CrazyGames Shim] SendMessage failed:",
+                    e
+                );
+            }
+
+        } else {
+
+            msgQueue.push([
+                obj,
+                method,
+                param
+            ]);
+        }
+    }
+
+    window.unityInstance = {
+        SendMessage: sendToUnity
+    };
+
+    window.gameInstance = null;
+
+    var sdk = {
+
+        init: function (cfg) {
+
+            console.log(
+                "[CrazyGames Shim] init()",
+                cfg
+            );
+
+            if (
+                cfg &&
+                cfg.crazySDKObjectName
+            ) {
+
+                sendToUnity(
+                    cfg.crazySDKObjectName,
+                    "OnSDKInit"
+                );
+            }
+
+            return true;
+        },
+
+        gameplayStart: function () {
+
+            console.log(
+                "[CrazyGames Shim] gameplayStart()"
+            );
+
+            return true;
+        },
+
+        gameplayStop: function () {
+
+            console.log(
+                "[CrazyGames Shim] gameplayStop()"
+            );
+
+            return true;
+        },
+
+        happytime: function () {
+
+            console.log(
+                "[CrazyGames Shim] happytime()"
+            );
+
+            return true;
+        },
+
+        requestAd: function () {
+
+            console.log(
+                "[CrazyGames Shim] requestAd()"
+            );
+
+            setTimeout(
+                function () {
+
+                    sendToUnity(
+                        "CrazyGames",
+                        "OnAdCompleted"
+                    );
+
+                    sendToUnity(
+                        "CrazyGames",
+                        "OnAdFinished",
+                        "true"
+                    );
+
+                },
+                50
+            );
+
+            return true;
+        },
+
+        requestBanners: function () {
+
+            console.log(
+                "[CrazyGames Shim] requestBanners()"
+            );
+
+            var banner =
+                document.getElementById(
+                    "crazygames-banner"
+                );
+
+            if (banner) {
+                banner.style.display = "block";
+            }
+
+            return true;
+        },
+
+        requestInviteUrl: function () {
+
+            console.log(
+                "[CrazyGames Shim] requestInviteUrl()"
+            );
+
+            return true;
+        },
+
+        screenshotReceived: function () {
+
+            console.log(
+                "[CrazyGames Shim] screenshotReceived()"
+            );
+
+            return true;
+        }
+    };
+
+    window.CrazyGames = sdk;
+    window.Crazygames = sdk;
+
+    window.__setCrazyGamesUnityInstance =
+        function (instance) {
+
+            gameInstance = instance;
+
+            window.gameInstance =
+                instance;
+
+            window.unityInstance =
+                instance;
+
+            console.log(
+                "[CrazyGames Shim] Unity connected."
+            );
+
+            while (
+                msgQueue.length > 0
+            ) {
+
+                var msg =
+                    msgQueue.shift();
+
+                try {
+
+                    instance.SendMessage(
+                        msg[0],
+                        msg[1],
+                        msg[2]
+                    );
+
+                } catch (e) {
+
+                    console.warn(
+                        "[CrazyGames Shim] Queued message failed:",
+                        e
+                    );
+                }
+            }
+        };
+
+})();
+</script>
+
+<!-- =========================================================
+     BANNER FALLBACK
+     ========================================================= -->
+
+<script>
+(function () {
+
+    var banner =
+        document.getElementById(
+            "crazygames-banner-image"
+        );
+
+    if (!banner) {
+        return;
+    }
+
+    banner.onload = function () {
+
+        console.log(
+            "[CrazyGames] 320x50 banner loaded."
+        );
+    };
+
+    banner.onerror = function () {
+
+        console.warn(
+            "[CrazyGames] Remote banner failed. Trying local copy."
+        );
+
+        banner.src =
+            "/games/hazmob-fps/320x50.png";
+    };
+
+})();
+</script>
+
+<!-- =========================================================
+     HAZMOB ASSET REDIRECT + SPLIT FILE MERGER
+     ========================================================= -->
+
+<script>
+(function () {
+
+    "use strict";
+
+    /*
+     * ============================================================
+     * PATHS
+     * ============================================================
+     */
+
+    var GAME_ROOT =
+        window.location.origin +
+        "/games/hazmob-fps/";
+
+    var BUILD_ROOT =
+        GAME_ROOT +
+        "Build/";
+
+    var STREAMING_ROOT =
+        GAME_ROOT +
+        "StreamingAssets/";
+
+
+    /*
+     * ============================================================
+     * ORIGINAL CRAZYGAMES STREAMING ROOT
+     * ============================================================
+     */
+
+    var CRAZYGAMES_HAZMOB_STREAMING_ROOT =
+        "https://files.crazygames.com/hazmob-fps-online-shooter/195/cg1/StreamingAssets/";
+
+
+    var CRAZYGAMES_STREAMING_ROOT =
+        "https://www.crazygames.com/game/StreamingAssets/";
+
+
+    /*
+     * ============================================================
+     * EXTERNAL REALISTIC ASSETS BUNDLE
+     * ============================================================
+     *
+     * Any request containing this bundle filename is redirected
+     * directly to the external CrazyGames-hosted bundle.
+     */
+
+    var REALISTIC_ASSETS_BUNDLE =
+        "realistic_assets_realistic_9c23e80bdcebbb4ca473f4916c2c2c52.bundle";
+
+    var REALISTIC_ASSETS_EXTERNAL_URL =
+        "https://files.crazygames.com/hazmob-fps-online-shooter/195/cg1/StreamingAssets/aa/WebGL/" +
+        REALISTIC_ASSETS_BUNDLE;
+
+
+    /*
+     * ============================================================
+     * ORIGINAL UNITY FILENAMES
+     * ============================================================
+     */
+
+    var WASM_FILE =
+        "8deaa3ed996bd6c26f3e882d01ec967e.wasm";
+
+    var DATA_FILE =
+        "dcb87181543463b13ecb23fc004eb654.data";
+
+
+    /*
+     * ============================================================
+     * WASM PARTS
+     * ============================================================
+     */
+
+    var WASM_PARTS = [
+
+        BUILD_ROOT +
+        "8deaa3ed996bd6c26f3e882d01ec967e.wasm.part001",
+
+        BUILD_ROOT +
+        "8deaa3ed996bd6c26f3e882d01ec967e.wasm.part002",
+
+        BUILD_ROOT +
+        "8deaa3ed996bd6c26f3e882d01ec967e.wasm.part003",
+
+        BUILD_ROOT +
+        "8deaa3ed996bd6c26f3e882d01ec967e.wasm.part004"
+
+    ];
+
+
+    /*
+     * ============================================================
+     * DATA PARTS
+     * ============================================================
+     */
+
+    var DATA_PARTS = [
+
+        BUILD_ROOT +
+        "dcb87181543463b13ecb23fc004eb654.data.part001",
+
+        BUILD_ROOT +
+        "dcb87181543463b13ecb23fc004eb654.data.part002",
+
+        BUILD_ROOT +
+        "dcb87181543463b13ecb23fc004eb654.data.part003",
+
+        BUILD_ROOT +
+        "dcb87181543463b13ecb23fc004eb654.data.part004",
+
+        BUILD_ROOT +
+        "dcb87181543463b13ecb23fc004eb654.data.part005"
+
+    ];
+
+
+    var originalFetch =
+        window.fetch.bind(window);
+
+
+    /*
+     * ============================================================
+     * COMBINE SPLIT FILES
+     * ============================================================
+     */
+
+    async function combineParts(
+        parts,
+        label,
+        contentType
+    ) {
+
+        console.log(
+            "[Hazmob] Combining " +
+            label +
+            "..."
+        );
+
+        var buffers = [];
+
+        for (
+            var i = 0;
+            i < parts.length;
+            i++
+        ) {
+
+            var partUrl =
+                parts[i];
+
+            console.log(
+                "[Hazmob] Loading " +
+                label +
+                " part " +
+                (i + 1) +
+                "/" +
+                parts.length +
+                ":",
+                partUrl
+            );
+
+            var response =
+                await originalFetch(
+                    partUrl,
+                    {
+                        cache: "no-store"
+                    }
+                );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    label +
+                    " part " +
+                    (i + 1) +
+                    " failed: HTTP " +
+                    response.status +
+                    "\n\n" +
+                    partUrl
+                );
+            }
+
+            var buffer =
+                await response.arrayBuffer();
+
+            buffers.push(
+                buffer
+            );
+        }
+
+
+        var totalSize = 0;
+
+        for (
+            var j = 0;
+            j < buffers.length;
+            j++
+        ) {
+
+            totalSize +=
+                buffers[j].byteLength;
+        }
+
+
+        console.log(
+            "[Hazmob] " +
+            label +
+            " total size:",
+            totalSize.toLocaleString(),
+            "bytes"
+        );
+
+
+        var combined =
+            new Uint8Array(
+                totalSize
+            );
+
+        var offset = 0;
+
+        for (
+            var k = 0;
+            k < buffers.length;
+            k++
+        ) {
+
+            combined.set(
+                new Uint8Array(
+                    buffers[k]
+                ),
+                offset
+            );
+
+            offset +=
+                buffers[k].byteLength;
+        }
+
+
+        console.log(
+            "[Hazmob] " +
+            label +
+            " combined successfully."
+        );
+
+
+        return new Response(
+            combined,
+            {
+                status: 200,
+
+                headers: {
+                    "Content-Type":
+                        contentType,
+
+                    "Content-Length":
+                        String(
+                            combined.byteLength
+                        )
+                }
+            }
+        );
+    }
+
+
+    var wasmPromise = null;
+    var dataPromise = null;
+
+
+    /*
+     * ============================================================
+     * HAZMOB ASSET REDIRECT
+     * ============================================================
+     */
+
+    function redirectHazmobAsset(url) {
+
+        if (
+            typeof url !== "string"
+        ) {
+
+            return url;
+        }
+
+
+        /*
+         * ========================================================
+         * REALISTIC ASSETS BUNDLE
+         * ========================================================
+         *
+         * This catches:
+         *
+         * https://files.crazygames.com/.../realistic_assets...bundle
+         *
+         * Local catalog paths containing the same filename
+         *
+         * /games/hazmob-fps/StreamingAssets/aa/WebGL/...
+         *
+         * and other Addressables-generated URLs.
+         */
+
+        if (
+            url.indexOf(
+                REALISTIC_ASSETS_BUNDLE
+            ) !== -1
+        ) {
+
+            console.log(
+                "[Hazmob Assets] REALISTIC ASSETS BUNDLE REDIRECT"
+            );
+
+            console.log(
+                "FROM:",
+                url
+            );
+
+            console.log(
+                "TO:",
+                REALISTIC_ASSETS_EXTERNAL_URL
+            );
+
+            return REALISTIC_ASSETS_EXTERNAL_URL;
+        }
+
+
+        /*
+         * ========================================================
+         * EXACT HAZMOB CRAZYGAMES STREAMING ROOT
+         * ========================================================
+         */
+
+        if (
+            url.indexOf(
+                CRAZYGAMES_HAZMOB_STREAMING_ROOT
+            ) === 0
+        ) {
+
+            var hazmobRelative =
+                url.substring(
+                    CRAZYGAMES_HAZMOB_STREAMING_ROOT.length
+                );
+
+            var hazmobLocalUrl =
+                STREAMING_ROOT +
+                hazmobRelative;
+
+            console.log(
+                "[Hazmob Assets] CrazyGames Hazmob redirect:"
+            );
+
+            console.log(
+                "FROM:",
+                url
+            );
+
+            console.log(
+                "TO:",
+                hazmobLocalUrl
+            );
+
+            return hazmobLocalUrl;
+        }
+
+
+        /*
+         * ========================================================
+         * OLD CRAZYGAMES STREAMINGASSETS URL
+         * ========================================================
+         */
+
+        if (
+            url.indexOf(
+                CRAZYGAMES_STREAMING_ROOT
+            ) === 0
+        ) {
+
+            var relative =
+                url.substring(
+                    CRAZYGAMES_STREAMING_ROOT.length
+                );
+
+            var localUrl =
+                STREAMING_ROOT +
+                relative;
+
+            console.log(
+                "[Hazmob Assets] CrazyGames StreamingAssets redirect:"
+            );
+
+            console.log(
+                "FROM:",
+                url
+            );
+
+            console.log(
+                "TO:",
+                localUrl
+            );
+
+            return localUrl;
+        }
+
+
+        /*
+         * ========================================================
+         * GENERIC CRAZYGAMES STREAMINGASSETS URL
+         * ========================================================
+         */
+
+        var streamingMarker =
+            "/StreamingAssets/";
+
+        var markerIndex =
+            url.indexOf(
+                streamingMarker
+            );
+
+        if (
+            markerIndex !== -1 &&
+            url.indexOf(
+                "crazygames.com"
+            ) !== -1
+        ) {
+
+            var relativePath =
+                url.substring(
+                    markerIndex +
+                    streamingMarker.length
+                );
+
+            var localStreamingUrl =
+                STREAMING_ROOT +
+                relativePath;
+
+            console.log(
+                "[Hazmob Assets] External StreamingAssets redirect:"
+            );
+
+            console.log(
+                "FROM:",
+                url
+            );
+
+            console.log(
+                "TO:",
+                localStreamingUrl
+            );
+
+            return localStreamingUrl;
+        }
+
+
+        return url;
+    }
+
+
+    /*
+     * ============================================================
+     * FETCH INTERCEPTION
+     * ============================================================
+     */
+
+    window.fetch =
+        async function (
+            input,
+            init
+        ) {
+
+            var url = "";
+
+            if (
+                typeof input === "string"
+            ) {
+
+                url =
+                    input;
+
+            } else if (
+                input instanceof Request
+            ) {
+
+                url =
+                    input.url;
+
+            } else if (
+                input &&
+                input.url
+            ) {
+
+                url =
+                    input.url;
+            }
+
+
+            /*
+             * ====================================================
+             * WASM
+             * ====================================================
+             */
+
+            if (
+                url ===
+                    BUILD_ROOT +
+                    WASM_FILE
+                ||
+                url.endsWith(
+                    "/" + WASM_FILE
+                )
+            ) {
+
+                if (!wasmPromise) {
+
+                    wasmPromise =
+                        combineParts(
+                            WASM_PARTS,
+                            "WASM",
+                            "application/wasm"
+                        );
+                }
+
+                return wasmPromise;
+            }
+
+
+            /*
+             * ====================================================
+             * DATA
+             * ====================================================
+             */
+
+            if (
+                url ===
+                    BUILD_ROOT +
+                    DATA_FILE
+                ||
+                url.endsWith(
+                    "/" + DATA_FILE
+                )
+            ) {
+
+                if (!dataPromise) {
+
+                    dataPromise =
+                        combineParts(
+                            DATA_PARTS,
+                            "game data",
+                            "application/octet-stream"
+                        );
+                }
+
+                return dataPromise;
+            }
+
+
+            /*
+             * ====================================================
+             * ALL OTHER HAZMOB ASSETS
+             * ====================================================
+             */
+
+            var redirected =
+                redirectHazmobAsset(
+                    url
+                );
+
+            if (
+                redirected !== url
+            ) {
+
+                if (
+                    input instanceof Request
+                ) {
+
+                    input =
+                        new Request(
+                            redirected,
+                            input
+                        );
+
+                } else {
+
+                    input =
+                        redirected;
+                }
+            }
+
+
+            return originalFetch(
+                input,
+                init
+            );
+        };
+
+
+    /*
+     * ============================================================
+     * XHR INTERCEPTION
+     * ============================================================
+     */
+
+    var originalOpen =
+        XMLHttpRequest.prototype.open;
+
+    XMLHttpRequest.prototype.open =
+        function (
+            method,
+            url,
+            async,
+            user,
+            password
+        ) {
+
+            var originalUrl =
+                String(url);
+
+
+            var redirectedUrl =
+                redirectHazmobAsset(
+                    originalUrl
+                );
+
+
+            if (
+                redirectedUrl !==
+                originalUrl
+            ) {
+
+                url =
+                    redirectedUrl;
+            }
+
+
+            return originalOpen.call(
+                this,
+                method,
+                url,
+                async,
+                user,
+                password
+            );
+        };
+
+
+    /*
+     * ============================================================
+     * LOGGING
+     * ============================================================
+     */
+
+    console.log(
+        "[Hazmob] Asset system initialized."
+    );
+
+    console.log(
+        "[Hazmob] Game root:",
+        GAME_ROOT
+    );
+
+    console.log(
+        "[Hazmob] Build root:",
+        BUILD_ROOT
+    );
+
+    console.log(
+        "[Hazmob] StreamingAssets:",
+        STREAMING_ROOT
+    );
+
+    console.log(
+        "[Hazmob] External realistic bundle:",
+        REALISTIC_ASSETS_EXTERNAL_URL
+    );
+
+    console.log(
+        "[Hazmob] WASM parts:",
+        WASM_PARTS.length
+    );
+
+    console.log(
+        "[Hazmob] DATA parts:",
+        DATA_PARTS.length
+    );
+
+})();
+</script>
+
+<!-- =========================================================
+     WEBGL CONTEXT
+     ========================================================= -->
+
+<script>
+window.addEventListener(
+    "load",
+    function () {
+
+        var canvas =
+            document.getElementById(
+                "unity-canvas"
+            );
+
+        if (canvas) {
+
+            canvas.addEventListener(
+                "webglcontextlost",
+                function (e) {
+
+                    console.warn(
+                        "[Hazmob] WebGL context lost."
+                    );
+
+                    e.preventDefault();
+                }
+            );
+        }
+    }
+);
+</script>
+
+<!-- =========================================================
+     UNITY LOADER
+     ========================================================= -->
+
+<script>
+(function () {
+
+    "use strict";
+
+    var buildUrl =
+        "Build";
+
+    var canvas =
+        document.getElementById(
+            "unity-canvas"
+        );
+
+    var loadingScreen =
+        document.getElementById(
+            "loading-screen"
+        );
+
+    var loadingBar =
+        document.getElementById(
+            "loading-bar"
+        );
+
+    var loadingPercent =
+        document.getElementById(
+            "loading-percent"
+        );
+
+    var loadingStatus =
+        document.getElementById(
+            "loading-status"
+        );
+
+    var errorScreen =
+        document.getElementById(
+            "error-screen"
+        );
+
+
+    function setProgress(
+        progress
+    ) {
+
+        progress =
+            Math.max(
+                0,
+                Math.min(
+                    1,
+                    progress
+                )
+            );
+
+        var percent =
+            Math.round(
+                progress * 100
+            );
+
+        loadingBar.style.width =
+            percent + "%";
+
+        loadingPercent.textContent =
+            percent + "%";
+
+
+        if (
+            percent < 10
+        ) {
+
+            loadingStatus.textContent =
+                "Starting Unity...";
+
+        } else if (
+            percent < 50
+        ) {
+
+            loadingStatus.textContent =
+                "Loading game files...";
+
+        } else if (
+            percent < 90
+        ) {
+
+            loadingStatus.textContent =
+                "Loading Hazmob FPS...";
+
+        } else if (
+            percent < 100
+        ) {
+
+            loadingStatus.textContent =
+                "Almost ready...";
+
+        } else {
+
+            loadingStatus.textContent =
+                "Starting game...";
+        }
+    }
+
+
+    function showError(
+        error
+    ) {
+
+        console.error(
+            "[Hazmob FPS]",
+            error
+        );
+
+        loadingScreen.style.display =
+            "none";
+
+        errorScreen.style.display =
+            "block";
+
+        errorScreen.textContent =
+            "Hazmob FPS failed to start.\n\n" +
+            String(error);
+    }
+
+
+    /*
+     * ============================================================
+     * UNITY CONFIGURATION
+     * ============================================================
+     */
+
+    var config = {
+
+        dataUrl:
+            buildUrl +
+            "/dcb87181543463b13ecb23fc004eb654.data",
+
+        frameworkUrl:
+            buildUrl +
+            "/4c681e1f05426d18bcaa15a0d809f6d8.framework.js",
+
+        codeUrl:
+            buildUrl +
+            "/8deaa3ed996bd6c26f3e882d01ec967e.wasm",
+
+        streamingAssetsUrl:
+            "StreamingAssets",
+
+        companyName:
+            "Hazmob",
+
+        productName:
+            "Hazmob FPS",
+
+        productVersion:
+            "1.0"
+    };
+
+
+    console.log(
+        "[Hazmob] document.URL:",
+        document.URL
+    );
+
+    console.log(
+        "[Hazmob] Browser URL:",
+        window.location.href
+    );
+
+    console.log(
+        "[Hazmob] Unity config:",
+        config
+    );
+
+
+    setProgress(0);
+
+
+    /*
+     * ============================================================
+     * LOAD UNITY LOADER
+     * ============================================================
+     */
+
+    var loader =
+        document.createElement(
+            "script"
+        );
+
+    loader.src =
+        buildUrl +
+        "/5755fd42aa2f3b97a513d8e2730b6fe5.loader.js";
+
+
+    loader.onload =
+        function () {
+
+            console.log(
+                "[Hazmob] Unity loader loaded."
+            );
+
+
+            if (
+                typeof createUnityInstance !==
+                "function"
+            ) {
+
+                showError(
+                    "createUnityInstance() was not found."
+                );
+
+                return;
+            }
+
+
+            setProgress(
+                0.01
+            );
+
+
+            createUnityInstance(
+
+                canvas,
+
+                config,
+
+                function (
+                    progress
+                ) {
+
+                    setProgress(
+                        progress
+                    );
+                }
+
+            ).then(
+
+                function (
+                    instance
+                ) {
+
+                    console.log(
+                        "[Hazmob] Unity instance created."
+                    );
+
+
+                    if (
+                        typeof window.__setCrazyGamesUnityInstance ===
+                        "function"
+                    ) {
+
+                        window.__setCrazyGamesUnityInstance(
+                            instance
+                        );
+
+                    } else {
+
+                        window.unityInstance =
+                            instance;
+
+                        window.gameInstance =
+                            instance;
+                    }
+
+
+                    setProgress(
+                        1
+                    );
+
+
+                    setTimeout(
+                        function () {
+
+                            loadingScreen.style.display =
+                                "none";
+
+                        },
+                        500
+                    );
+                }
+
+            ).catch(
+
+                function (
+                    error
+                ) {
+
+                    showError(
+                        error &&
+                        error.stack
+                            ? error.stack
+                            : error
+                    );
+                }
+            );
+        };
+
+
+    loader.onerror =
+        function () {
+
+            showError(
+                "Could not load Unity loader:\n\n" +
+                loader.src
+            );
+        };
+
+
+    document.body.appendChild(
+        loader
+    );
+
+})();
+</script>
+
+</body>
+</html>

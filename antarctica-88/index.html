@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, maximum-scale=1.0, initial-scale=1.0, user-scalable=no">
+
+    <title>Antarctica 88</title>
+
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #gameContainer {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #000;
+        }
+
+        #ziggyLoader {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: white;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(180deg, #05080c, #102331, #263b4a);
+        }
+
+        #loadingText {
+            margin-top: 18px;
+            opacity: 0.8;
+        }
+
+        #progressBar {
+            width: min(400px, 80vw);
+            height: 8px;
+            margin-top: 15px;
+            background: rgba(255,255,255,.15);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #progressFill {
+            width: 0%;
+            height: 100%;
+            background: white;
+            transition: width .15s ease;
+        }
+    </style>
+
+    <script>
+        window.czyVariables = {
+            countryCode: "US"
+        };
+    </script>
+</head>
+
+<body>
+
+<div id="ziggyLoader">
+    <div style="font-size:40px">❄</div>
+    <div id="loadingText">Preparing Antarctica 88…</div>
+
+    <div id="progressBar">
+        <div id="progressFill"></div>
+    </div>
+</div>
+
+<div id="gameContainer">
+    <canvas id="unity-canvas"></canvas>
+</div>
+
+<script>
+(function () {
+    var gameInstance = null;
+    var msgQueue = [];
+
+    window.gameInstance = null;
+    window.msgQueue = msgQueue;
+
+    try {
+        Object.defineProperty(document, "URL", {
+            configurable: true,
+            get: function () {
+                return "https://www.crazygames.com/game/space-waves";
+            }
+        });
+
+        Object.defineProperty(document, "documentURI", {
+            configurable: true,
+            get: function () {
+                return "https://www.crazygames.com/game/space-waves";
+            }
+        });
+    } catch (e) {
+        console.warn("[CrazyGames Shim] URL override failed", e);
+    }
+
+    function sendToUnity(objectName, methodName, parameter) {
+        try {
+            if (
+                gameInstance &&
+                typeof gameInstance.SendMessage === "function"
+            ) {
+                gameInstance.SendMessage(
+                    objectName,
+                    methodName,
+                    parameter
+                );
+            } else {
+                msgQueue.push([
+                    objectName,
+                    methodName,
+                    parameter
+                ]);
+            }
+        } catch (e) {
+            console.warn(
+                "[CrazyGames Shim] SendMessage failed:",
+                e
+            );
+        }
+    }
+
+    window.unityInstance = {
+        SendMessage: function (
+            objectName,
+            methodName,
+            parameter
+        ) {
+            sendToUnity(
+                objectName,
+                methodName,
+                parameter
+            );
+        }
+    };
+
+    var sdk = {
+        init: function (config) {
+            console.log("[CrazyGames Shim] Init");
+
+            try {
+                if (
+                    config &&
+                    config.crazySDKObjectName
+                ) {
+                    sendToUnity(
+                        config.crazySDKObjectName,
+                        "OnSDKInit"
+                    );
+                }
+            } catch (e) {
+                console.warn(
+                    "[CrazyGames Shim] Init callback failed",
+                    e
+                );
+            }
+
+            return Promise.resolve(true);
+        },
+
+        gameplayStart: function () {
+            console.log("[CrazyGames Shim] gameplayStart");
+            return Promise.resolve(true);
+        },
+
+        gameplayStop: function () {
+            console.log("[CrazyGames Shim] gameplayStop");
+            return Promise.resolve(true);
+        },
+
+        happytime: function () {
+            console.log("[CrazyGames Shim] happytime");
+            return Promise.resolve(true);
+        },
+
+        requestAd: function () {
+            console.log("[CrazyGames Shim] requestAd");
+
+            setTimeout(function () {
+                sendToUnity(
+                    "CrazyGames",
+                    "OnAdCompleted"
+                );
+
+                sendToUnity(
+                    "CrazyGames",
+                    "OnAdFinished",
+                    "true"
+                );
+            }, 100);
+
+            return Promise.resolve(true);
+        },
+
+        requestBanners: function () {
+            console.log("[CrazyGames Shim] requestBanners");
+            return Promise.resolve(true);
+        },
+
+        requestInviteUrl: function () {
+            console.log("[CrazyGames Shim] requestInviteUrl");
+            return Promise.resolve("");
+        },
+
+        screenshotReceived: function () {
+            console.log("[CrazyGames Shim] screenshotReceived");
+            return Promise.resolve(true);
+        }
+    };
+
+    window.CrazyGames = sdk;
+    window.Crazygames = sdk;
+    window.CrazyGamesSDK = sdk;
+    window.CrazyGamesSdk = sdk;
+
+    document
+        .getElementById("unity-canvas")
+        .addEventListener(
+            "webglcontextlost",
+            function (event) {
+                console.warn("[Unity] WebGL context lost");
+                event.preventDefault();
+            }
+        );
+
+    window.addEventListener(
+        "unhandledrejection",
+        function (event) {
+            var error = event.reason;
+
+            if (!error) return;
+
+            var message = String(
+                error.message || error
+            );
+
+            if (
+                message
+                    .toLowerCase()
+                    .includes("crazysdk") ||
+                message
+                    .toLowerCase()
+                    .includes("sdkdisabled")
+            ) {
+                console.warn(
+                    "[CrazyGames Shim] Suppressed:",
+                    error
+                );
+
+                event.preventDefault();
+            }
+        }
+    );
+
+    console.log("[CrazyGames Shim] Ready");
+})();
+</script>
+
+<script>
+const BUILD = "./Build/";
+
+const FILES = {
+    wasm: [
+        "2cf7f0c57568702ed7a7ecf1b4f10cd2.wasm.part001",
+        "2cf7f0c57568702ed7a7ecf1b4f10cd2.wasm.part002"
+    ],
+
+    data: [
+        "8eebc700bdae2004e0dce1359faa221d.data.part001",
+        "8eebc700bdae2004e0dce1359faa221d.data.part002",
+        "8eebc700bdae2004e0dce1359faa221d.data.part003",
+        "8eebc700bdae2004e0dce1359faa221d.data.part004",
+        "8eebc700bdae2004e0dce1359faa221d.data.part005",
+        "8eebc700bdae2004e0dce1359faa221d.data.part006"
+    ]
+};
+
+const LOADER =
+    BUILD +
+    "bb0d9ecdb05db3e84da20bd14a4f84dc.loader.js";
+
+const FRAMEWORK =
+    BUILD +
+    "ba5675cc598a4c2f52ba31360ff81827.framework.js";
+
+const WASM_MIME =
+    "application/wasm";
+
+const DATA_MIME =
+    "application/octet-stream";
+
+
+function setStatus(text, percent) {
+    const loadingText =
+        document.getElementById("loadingText");
+
+    const progressFill =
+        document.getElementById("progressFill");
+
+    if (loadingText) {
+        loadingText.textContent = text;
+    }
+
+    if (
+        progressFill &&
+        typeof percent === "number"
+    ) {
+        progressFill.style.width =
+            Math.max(
+                0,
+                Math.min(100, percent)
+            ) + "%";
+    }
+}
+
+
+async function combineParts(parts, mime, label, start, end) {
+    let total = 0;
+    const buffers = [];
+
+    for (let i = 0; i < parts.length; i++) {
+        const filename = BUILD + parts[i];
+
+        setStatus(
+            "Loading " +
+            label +
+            " part " +
+            (i + 1) +
+            "/" +
+            parts.length +
+            "…",
+            start +
+            ((end - start) * i / parts.length)
+        );
+
+        console.log(
+            "[Chunk Loader] Fetching:",
+            filename
+        );
+
+        const response =
+            await fetch(filename, {
+                cache: "no-cache"
+            });
+
+        if (!response.ok) {
+            throw new Error(
+                "Failed to fetch " +
+                filename +
+                " (" +
+                response.status +
+                ")"
+            );
+        }
+
+        const buffer =
+            await response.arrayBuffer();
+
+        buffers.push(
+            new Uint8Array(buffer)
+        );
+
+        total += buffer.byteLength;
+
+        console.log(
+            "[Chunk Loader]",
+            parts[i],
+            buffer.byteLength,
+            "bytes"
+        );
+    }
+
+    const combined =
+        new Uint8Array(total);
+
+    let offset = 0;
+
+    for (const buffer of buffers) {
+        combined.set(buffer, offset);
+        offset += buffer.length;
+    }
+
+    console.log(
+        "[Chunk Loader] Rebuilt",
+        label,
+        total,
+        "bytes"
+    );
+
+    setStatus(
+        "Preparing " + label + "…",
+        end
+    );
+
+    const blob =
+        new Blob(
+            [combined],
+            { type: mime }
+        );
+
+    return URL.createObjectURL(blob);
+}
+
+
+async function prepareGameFiles() {
+    setStatus(
+        "Downloading game files…",
+        0
+    );
+
+    const wasmURL =
+        await combineParts(
+            FILES.wasm,
+            WASM_MIME,
+            "WASM",
+            0,
+            35
+        );
+
+    const dataURL =
+        await combineParts(
+            FILES.data,
+            DATA_MIME,
+            "game data",
+            35,
+            80
+        );
+
+    return {
+        wasmURL: wasmURL,
+        dataURL: dataURL
+    };
+}
+
+
+function loadUnityLoader() {
+    return new Promise(function (resolve, reject) {
+        if (
+            typeof createUnityInstance ===
+            "function"
+        ) {
+            resolve();
+            return;
+        }
+
+        const script =
+            document.createElement("script");
+
+        script.src = LOADER;
+
+        script.onload = function () {
+            console.log(
+                "Antarctica 88 Unity loader loaded."
+            );
+
+            resolve();
+        };
+
+        script.onerror = function () {
+            reject(
+                new Error(
+                    "Unity loader failed to load: " +
+                    LOADER
+                )
+            );
+        };
+
+        document.head.appendChild(script);
+    });
+}
+
+
+async function startGame() {
+    try {
+        const files =
+            await prepareGameFiles();
+
+        setStatus(
+            "Loading Unity…",
+            85
+        );
+
+        await loadUnityLoader();
+
+        setStatus(
+            "Starting Antarctica 88…",
+            90
+        );
+
+        const unityConfig = {
+            loaderUrl: LOADER,
+
+            dataUrl:
+                files.dataURL,
+
+            frameworkUrl:
+                FRAMEWORK,
+
+            codeUrl:
+                files.wasmURL,
+
+            streamingAssetsUrl: "",
+
+            companyName:
+                "Antarctica 88",
+
+            productName:
+                "Antarctica 88",
+
+            productVersion:
+                "1.0",
+
+            showBanner:
+                false
+        };
+
+        console.log(
+            "[Unity] Config:",
+            unityConfig
+        );
+
+        const instance =
+            await createUnityInstance(
+                document.getElementById(
+                    "unity-canvas"
+                ),
+
+                unityConfig,
+
+                function (progress) {
+                    const percent =
+                        90 +
+                        Math.round(
+                            progress * 10
+                        );
+
+                    setStatus(
+                        "Starting game " +
+                        Math.round(
+                            progress * 100
+                        ) +
+                        "%…",
+                        percent
+                    );
+                }
+            );
+
+        window.gameInstance =
+            instance;
+
+        window.unityInstance = {
+            SendMessage:
+                function (
+                    objectName,
+                    methodName,
+                    parameter
+                ) {
+                    try {
+                        instance.SendMessage(
+                            objectName,
+                            methodName,
+                            parameter
+                        );
+                    } catch (e) {
+                        console.warn(
+                            "[Shim] Unity SendMessage failed:",
+                            e
+                        );
+                    }
+                }
+        };
+
+        if (window.msgQueue) {
+            while (
+                window.msgQueue.length > 0
+            ) {
+                const msg =
+                    window.msgQueue.shift();
+
+                try {
+                    instance.SendMessage(
+                        msg[0],
+                        msg[1],
+                        msg[2]
+                    );
+                } catch (e) {
+                    console.warn(
+                        "[Shim] Queued message failed:",
+                        e
+                    );
+                }
+            }
+        }
+
+        console.log(
+            "Antarctica 88 started successfully."
+        );
+
+        setStatus(
+            "Game loaded!",
+            100
+        );
+
+        setTimeout(function () {
+            const loader =
+                document.getElementById(
+                    "ziggyLoader"
+                );
+
+            if (loader) {
+                loader.remove();
+            }
+        }, 300);
+
+    } catch (error) {
+        console.error(
+            "Antarctica 88 failed:",
+            error
+        );
+
+        setStatus(
+            "Failed to load Antarctica 88: " +
+            error.message,
+            0
+        );
+    }
+}
+
+
+startGame();
+</script>
+
+</body>
+</html>

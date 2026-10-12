@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="initial-scale=1.0, width=device-width">
+
+    <title>Prison Escape 2</title>
+
+    <!-- CrazyGames SDK -->
+    <script src="crazygames-sdk-v3.js"></script>
+
+    <!-- Unity Template -->
+    <script src="TemplateData/main.js"></script>
+    <link rel="stylesheet" href="TemplateData/style.css">
+
+    <link rel="canonical"
+          href="https://www.crazygames.com/game/prison-escape-2">
+</head>
+
+<body style="text-align:center">
+
+<div id="unity-container" class="unity-desktop">
+
+    <canvas
+        id="unity-canvas"
+        tabindex="-1"
+        style="outline:none;background:#231F20">
+    </canvas>
+
+    <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+
+        <div id="unity-progress-bar-empty">
+            <div id="unity-progress-bar-full"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Unity loader -->
+<script src="Build/796819eeb8645153c10623716afa2e8b.loader.js"></script>
+
+<script>
+
+/* =====================================================
+   GLOBALS
+===================================================== */
+
+var myGameInstance = null;
+
+var container =
+    document.querySelector("#unity-container");
+
+var canvas =
+    document.querySelector("#unity-canvas");
+
+var progressBarFull =
+    document.querySelector("#unity-progress-bar-full");
+
+var loadingBar =
+    document.querySelector("#unity-loading-bar");
+
+
+/* =====================================================
+   CRAZYGAMES URL SHIM
+===================================================== */
+
+try {
+
+    Object.defineProperty(document, "URL", {
+        get: function () {
+            return "https://www.crazygames.com/game/prison-escape-2";
+        },
+        configurable: true
+    });
+
+    Object.defineProperty(document, "documentURI", {
+        get: function () {
+            return "https://www.crazygames.com/game/prison-escape-2";
+        },
+        configurable: true
+    });
+
+} catch (e) {
+
+    console.warn(
+        "[CrazyGames] URL shim failed:",
+        e
+    );
+
+}
+
+
+/* =====================================================
+   BUILD
+===================================================== */
+
+var buildUrl = "Build";
+
+var loaderUrl =
+    buildUrl +
+    "/796819eeb8645153c10623716afa2e8b.loader.js";
+
+
+/* =====================================================
+   SPLIT WASM MERGER
+===================================================== */
+
+var wasmBlobUrl = null;
+
+var wasmParts = [
+    buildUrl + "/c523ada689ac9fe1da7801c3a3fcb41e.wasm.part000",
+    buildUrl + "/c523ada689ac9fe1da7801c3a3fcb41e.wasm.part001",
+    buildUrl + "/c523ada689ac9fe1da7801c3a3fcb41e.wasm.part002",
+    buildUrl + "/c523ada689ac9fe1da7801c3a3fcb41e.wasm.part003"
+];
+
+
+async function mergeWasmParts()
+{
+    console.log(
+        "[WASM] Merging",
+        wasmParts.length,
+        "parts..."
+    );
+
+    var buffers = [];
+
+    for (
+        var i = 0;
+        i < wasmParts.length;
+        i++
+    ) {
+
+        console.log(
+            "[WASM] Loading part",
+            i + 1,
+            "/",
+            wasmParts.length
+        );
+
+        var response =
+            await fetch(wasmParts[i]);
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Failed to load WASM part " +
+                i +
+                ": HTTP " +
+                response.status
+            );
+
+        }
+
+        var buffer =
+            await response.arrayBuffer();
+
+        buffers.push(buffer);
+
+        console.log(
+            "[WASM] Part",
+            i + 1,
+            "loaded:",
+            buffer.byteLength,
+            "bytes"
+        );
+    }
+
+
+    var wasmBlob =
+        new Blob(
+            buffers,
+            {
+                type: "application/wasm"
+            }
+        );
+
+
+    wasmBlobUrl =
+        URL.createObjectURL(
+            wasmBlob
+        );
+
+
+    console.log(
+        "[WASM] Merge complete:",
+        wasmBlob.size,
+        "bytes"
+    );
+
+
+    return wasmBlobUrl;
+}
+
+
+/*
+ * Local Unity WebGL files.
+ *
+ * WASM is replaced with the generated
+ * blob URL after the split parts are merged.
+ */
+
+var config = {
+
+    dataUrl:
+        buildUrl +
+        "/f312b7b179aa18bba1fbbccf7c705ed9.data",
+
+    frameworkUrl:
+        buildUrl +
+        "/eb43d9b9602e52e4e505d1dcf1a86271.framework.js",
+
+    codeUrl:
+        "",
+
+    /*
+     * Remote StreamingAssets.
+     */
+
+    streamingAssetsUrl:
+        "https://prison-escape-2.game-files.crazygames.com/prison-escape-2/7/StreamingAssets",
+
+    companyName:
+        "DefaultCompany",
+
+    productName:
+        "Prison Escape 2",
+
+    productVersion:
+        "0.1.0",
+
+    showBanner:
+        null,
+
+    webglContextAttributes: {
+        preserveDrawingBuffer: true
+    }
+};
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+if (
+    /iPhone|iPad|iPod|Android|Mobi/i
+        .test(navigator.userAgent)
+) {
+
+    config.devicePixelRatio = 1;
+
+}
+
+
+/* =====================================================
+   CANVAS
+===================================================== */
+
+canvas.style.width = "100%";
+canvas.style.height = "100%";
+
+
+/* =====================================================
+   LOADING
+===================================================== */
+
+loadingBar.style.display = "block";
+
+
+/* =====================================================
+   FOCUS
+===================================================== */
+
+function resetWindowFocus()
+{
+    window.focus();
+    canvas.focus();
+}
+
+
+/* =====================================================
+   TIMESTAMP
+===================================================== */
+
+function getTimestampInSeconds()
+{
+    return Math.floor(
+        Date.now() / 1000
+    );
+}
+
+
+/* =====================================================
+   MATH
+===================================================== */
+
+function inverseLerp(a, b, value)
+{
+    if (a != b)
+        return clamp01(
+            (value - a) / (b - a)
+        );
+
+    return 0.0;
+}
+
+
+function clamp01(value)
+{
+    if (value < 0.0)
+        return 0.0;
+
+    if (value > 1.0)
+        return 1.0;
+
+    return value;
+}
+
+
+/* =====================================================
+   POINTER LOCK
+===================================================== */
+
+function lockChangeAlert()
+{
+    if (!myGameInstance)
+        return;
+
+    if (
+        document.pointerLockElement ===
+        canvas
+    ) {
+
+        try {
+
+            myGameInstance.SendMessage(
+                "Provider",
+                "OnPointerLocked"
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[PointerLock]",
+                e
+            );
+
+        }
+
+    } else {
+
+        try {
+
+            myGameInstance.SendMessage(
+                "Provider",
+                "OnPointerUnlocked"
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[PointerLock]",
+                e
+            );
+
+        }
+
+    }
+}
+
+
+/* =====================================================
+   UNITY INIT
+===================================================== */
+
+async function init()
+{
+    console.log(
+        "[Unity] init()"
+    );
+
+
+    /*
+     * Run preInit if available,
+     * but NEVER let it stop Unity.
+     */
+
+    if (
+        typeof preInit ===
+        "function"
+    ) {
+
+        try {
+
+            var result =
+                preInit();
+
+            console.log(
+                "[Unity] preInit result:",
+                result
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[Unity] preInit failed, continuing:",
+                e
+            );
+
+        }
+
+    }
+
+
+    /* CrazyGames loading */
+
+    try {
+
+        window.CrazyGames.SDK.game
+            .loadingStart();
+
+        console.log(
+            "[CrazyGames] loadingStart"
+        );
+
+    } catch (e) {
+
+        console.warn(
+            "[CrazyGames] loadingStart failed:",
+            e
+        );
+
+    }
+
+
+    /* Verify Unity loader */
+
+    if (
+        typeof createUnityInstance !==
+        "function"
+    ) {
+
+        console.error(
+            "[Unity] createUnityInstance is missing"
+        );
+
+        return;
+    }
+
+
+    /* =================================================
+       MERGE WASM
+    ================================================= */
+
+    try {
+
+        console.log(
+            "[WASM] Starting split WASM merge..."
+        );
+
+        config.codeUrl =
+            await mergeWasmParts();
+
+        console.log(
+            "[WASM] Blob URL ready:",
+            config.codeUrl
+        );
+
+    } catch (error) {
+
+        console.error(
+            "[WASM] Failed to merge WASM:",
+            error
+        );
+
+        loadingBar.style.display =
+            "none";
+
+        return;
+    }
+
+
+    console.log(
+        "[Unity] Creating Unity instance..."
+    );
+
+    console.log(
+        "[Unity] StreamingAssets:",
+        config.streamingAssetsUrl
+    );
+
+
+    /* =================================================
+       CREATE UNITY
+    ================================================= */
+
+    createUnityInstance(
+        canvas,
+        config,
+        function(progress)
+        {
+
+            var percent =
+                100 *
+                inverseLerp(
+                    0.0,
+                    0.9,
+                    progress
+                );
+
+            progressBarFull.style.width =
+                percent + "%";
+
+            console.log(
+                "[Unity] Loading:",
+                Math.round(progress * 100) + "%"
+            );
+
+        }
+
+    ).then(function(unityInstance)
+    {
+
+        console.log(
+            "[Unity] INSTANCE READY"
+        );
+
+
+        myGameInstance =
+            unityInstance;
+
+        window.myGameInstance =
+            unityInstance;
+
+        window.unityInstance =
+            unityInstance;
+
+
+        /* CrazyGames loading stop */
+
+        try {
+
+            window.CrazyGames.SDK.game
+                .loadingStop();
+
+            console.log(
+                "[CrazyGames] loadingStop"
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[CrazyGames] loadingStop failed:",
+                e
+            );
+
+        }
+
+
+        /* Hide loading screen */
+
+        loadingBar.style.display =
+            "none";
+
+
+        /* Notify Unity */
+
+        try {
+
+            myGameInstance.SendMessage(
+                "Provider",
+                "OnSDKInitializedCallback"
+            );
+
+            console.log(
+                "[Unity] OnSDKInitializedCallback sent"
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[Unity] Provider callback failed:",
+                e
+            );
+
+        }
+
+
+        /* Refresh callback */
+
+        window.addEventListener(
+            "beforeunload",
+            function()
+            {
+
+                if (!myGameInstance)
+                    return;
+
+                try {
+
+                    myGameInstance.SendMessage(
+                        "Provider",
+                        "OnRefreshCallback"
+                    );
+
+                } catch (e) {
+
+                    console.warn(
+                        "[Unity] Refresh callback failed:",
+                        e
+                    );
+
+                }
+
+            }
+        );
+
+
+        /* Pointer lock */
+
+        document.addEventListener(
+            "pointerlockchange",
+            lockChangeAlert,
+            false
+        );
+
+
+        console.log(
+            "[BOOT] PRISON ESCAPE 2 READY"
+        );
+
+    }).catch(function(error)
+    {
+
+        console.error(
+            "[Unity] START ERROR:",
+            error
+        );
+
+        loadingBar.style.display =
+            "none";
+
+    });
+}
+
+
+/* =====================================================
+   CRAZYGAMES SDK
+===================================================== */
+
+console.log(
+    "[CrazyGames] Checking SDK..."
+);
+
+
+if (
+    !window.CrazyGames ||
+    !window.CrazyGames.SDK
+) {
+
+    console.error(
+        "[CrazyGames] SDK not found"
+    );
+
+} else {
+
+    console.log(
+        "[CrazyGames] SDK found"
+    );
+
+
+    window.CrazyGames.SDK
+        .init()
+        .then(function()
+        {
+
+            console.log(
+                "[CrazyGames] SDK initialized"
+            );
+
+            init();
+
+        })
+        .catch(function(error)
+        {
+
+            console.error(
+                "[CrazyGames] SDK initialization failed:",
+                error
+            );
+
+        });
+
+}
+
+
+/* =====================================================
+   INPUT
+===================================================== */
+
+window.addEventListener(
+    "wheel",
+    function(event)
+    {
+        event.preventDefault();
+    },
+    {
+        passive: false
+    }
+);
+
+
+window.addEventListener(
+    "keydown",
+    function(event)
+    {
+
+        if (
+            [
+                "ArrowUp",
+                "ArrowDown"
+            ].includes(event.key)
+        ) {
+
+            event.preventDefault();
+
+        }
+
+    }
+);
+
+
+document.addEventListener(
+    "contextmenu",
+    function(event)
+    {
+        event.preventDefault();
+    }
+);
+
+
+/* =====================================================
+   WEBGL CONTEXT LOSS
+===================================================== */
+
+canvas.addEventListener(
+    "webglcontextlost",
+    function(event)
+    {
+
+        event.preventDefault();
+
+        console.warn(
+            "[WebGL] Context lost"
+        );
+
+    }
+);
+
+</script>
+
+</body>
+</html>

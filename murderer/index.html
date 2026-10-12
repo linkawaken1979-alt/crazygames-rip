@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <title>Night Incident</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        #gameContainer {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #000;
+            outline: none;
+        }
+
+        /* ==============================
+           LOADING SCREEN
+           ============================== */
+
+        #loadingScreen {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            background:
+                radial-gradient(
+                    circle at center,
+                    #181818 0%,
+                    #090909 45%,
+                    #020202 100%
+                );
+
+            color: #fff;
+
+            transition:
+                opacity 0.6s ease,
+                visibility 0.6s ease;
+        }
+
+        #loadingContent {
+            width: min(520px, 85vw);
+            text-align: center;
+        }
+
+        #title {
+            margin: 0;
+
+            font-size: clamp(38px, 7vw, 72px);
+            font-weight: 800;
+
+            letter-spacing: 8px;
+            text-transform: uppercase;
+
+            text-shadow:
+                0 0 15px rgba(255,255,255,0.08),
+                0 0 35px rgba(255,255,255,0.08);
+        }
+
+        #subtitle {
+            margin-top: 12px;
+
+            color: #777;
+
+            font-size: 13px;
+            letter-spacing: 5px;
+
+            text-transform: uppercase;
+        }
+
+        #loadingText {
+            margin-top: 55px;
+
+            color: #aaa;
+
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        #progressContainer {
+            width: 100%;
+            height: 7px;
+
+            margin-top: 15px;
+
+            overflow: hidden;
+
+            border-radius: 10px;
+
+            background: #242424;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 100%;
+
+            border-radius: 10px;
+
+            background: #fff;
+
+            transition: width 0.15s ease;
+        }
+
+        #percentage {
+            margin-top: 12px;
+
+            color: #666;
+
+            font-size: 12px;
+            letter-spacing: 2px;
+        }
+
+        #error {
+            display: none;
+
+            margin-top: 25px;
+            padding: 14px;
+
+            color: #ff6b6b;
+
+            font-size: 13px;
+            line-height: 1.5;
+
+            background: rgba(255, 0, 0, 0.08);
+
+            border: 1px solid rgba(255, 0, 0, 0.2);
+
+            border-radius: 5px;
+
+            word-break: break-word;
+        }
+
+        .dots::after {
+            content: "";
+
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%   { content: ""; }
+            25%  { content: "."; }
+            50%  { content: ".."; }
+            75%  { content: "..."; }
+            100% { content: ""; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="gameContainer">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+
+
+<!-- ==============================
+     LOADING SCREEN
+     ============================== -->
+
+<div id="loadingScreen">
+
+    <div id="loadingContent">
+
+        <h1 id="title">
+            Night Incident
+        </h1>
+
+        <div id="subtitle">
+            Initializing
+        </div>
+
+        <div id="loadingText">
+            Loading<span class="dots"></span>
+        </div>
+
+        <div id="progressContainer">
+            <div id="progressBar"></div>
+        </div>
+
+        <div id="percentage">
+            0%
+        </div>
+
+        <div id="error"></div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   SAVE THE REAL ORIGIN FIRST
+   ========================================================= */
+
+const REAL_ORIGIN =
+    window.location.origin;
+
+
+/* =========================================================
+   CRAZYGAMES URL SPOOF
+   ========================================================= */
+
+Object.defineProperty(
+    document,
+    "URL",
+    {
+        get: function () {
+            return "https://www.crazygames.com/game/space-waves";
+        },
+        configurable: true
+    }
+);
+
+
+Object.defineProperty(
+    document,
+    "documentURI",
+    {
+        get: function () {
+            return "https://www.crazygames.com/game/space-waves";
+        },
+        configurable: true
+    }
+);
+
+
+/* =========================================================
+   LOCAL GAME PATHS
+   ========================================================= */
+
+const GAME_ROOT =
+    REAL_ORIGIN +
+    "/games/murderer/";
+
+
+const STREAMING_ROOT =
+    GAME_ROOT +
+    "StreamingAssets/";
+
+
+console.log(
+    "[Night Incident] Local game root:",
+    GAME_ROOT
+);
+
+
+/* =========================================================
+   UNITY BUILD PATHS
+   ========================================================= */
+
+const BUILD_ROOT =
+    GAME_ROOT +
+    "Build/";
+
+
+/*
+ * Original logical Unity filenames.
+ */
+
+const WASM_FILE =
+    "2e13bc4ed0691d8104a2ab4846407e06.wasm";
+
+
+const DATA_FILE =
+    "ce2bc2cd199b72ca1197c05bcc7654c2.data";
+
+
+/* =========================================================
+   SPLIT WASM FILES
+   ========================================================= */
+
+   const WASM_PARTS = [
+    BUILD_ROOT + "2e13bc4ed0691d8104a2ab4846407e06.wasm.part001",
+    BUILD_ROOT + "2e13bc4ed0691d8104a2ab4846407e06.wasm.part002"
+    ];
+
+/* =========================================================
+   SPLIT DATA FILES
+   ========================================================= */
+   
+const DATA_PARTS = [
+    BUILD_ROOT + "ce2bc2cd199b72ca1197c05bcc7654c2.data.part001",
+    BUILD_ROOT + "ce2bc2cd199b72ca1197c05bcc7654c2.data.part002"
+];
+
+
+/* =========================================================
+   CRAZYGAMES ADDRESSABLES PATH
+   ========================================================= */
+
+const CRAZYGAMES_MURDERER_ROOT =
+    "https://files.crazygames.com/murderer/39/StreamingAssets/";
+
+
+const CRAZYGAMES_STREAMING_ROOT =
+    "https://www.crazygames.com/game/StreamingAssets/";
+
+
+/* =========================================================
+   ORIGINAL FETCH
+   ========================================================= */
+
+const originalFetch =
+    window.fetch.bind(window);
+
+
+/* =========================================================
+   MERGED BLOB URLS
+   ========================================================= */
+
+let mergedWasmURL = null;
+
+let mergedDataURL = null;
+
+
+/* =========================================================
+   MERGE PARTS
+   ========================================================= */
+
+async function mergeParts(
+    parts,
+    label,
+    contentType
+) {
+
+    console.log(
+        "[Night Incident] Merging " +
+        label +
+        "..."
+    );
+
+
+    const buffers = [];
+
+
+    let totalSize = 0;
+
+
+    for (
+        let i = 0;
+        i < parts.length;
+        i++
+    ) {
+
+        const partURL =
+            parts[i];
+
+
+        console.log(
+            "[Night Incident] Loading " +
+            label +
+            " part " +
+            (i + 1) +
+            "/" +
+            parts.length,
+            partURL
+        );
+
+
+        const response =
+            await originalFetch(
+                partURL,
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                label +
+                " part " +
+                (i + 1) +
+                " failed: HTTP " +
+                response.status +
+                "\n\n" +
+                partURL
+            );
+
+        }
+
+
+        const buffer =
+            await response.arrayBuffer();
+
+
+        buffers.push(
+            buffer
+        );
+
+
+        totalSize +=
+            buffer.byteLength;
+
+
+        /*
+         * Update the loading screen while
+         * the split files are being downloaded.
+         */
+
+        const mergeProgress =
+            (i + 1) /
+            parts.length;
+
+
+        if (
+            label === "WASM"
+        ) {
+
+            updateProgress(
+                0.05 +
+                mergeProgress * 0.20
+            );
+
+        } else {
+
+            updateProgress(
+                0.25 +
+                mergeProgress * 0.25
+            );
+
+        }
+
+    }
+
+
+    /*
+     * Allocate one continuous buffer.
+     */
+
+    const combined =
+        new Uint8Array(
+            totalSize
+        );
+
+
+    let offset = 0;
+
+
+    /*
+     * Append parts in exact order.
+     */
+
+    for (
+        let i = 0;
+        i < buffers.length;
+        i++
+    ) {
+
+        combined.set(
+            new Uint8Array(
+                buffers[i]
+            ),
+            offset
+        );
+
+
+        offset +=
+            buffers[i].byteLength;
+
+    }
+
+
+    console.log(
+        "[Night Incident] " +
+        label +
+        " merged:",
+        totalSize.toLocaleString(),
+        "bytes"
+    );
+
+
+    /*
+     * Turn the merged binary into a Blob URL.
+     */
+
+    const blob =
+        new Blob(
+            [
+                combined
+            ],
+            {
+                type:
+                    contentType
+            }
+        );
+
+
+    const blobURL =
+        URL.createObjectURL(
+            blob
+        );
+
+
+    console.log(
+        "[Night Incident] " +
+        label +
+        " Blob URL created."
+    );
+
+
+    return blobURL;
+
+}
+
+
+/* =========================================================
+   FETCH INTERCEPTOR
+   ========================================================= */
+
+window.fetch =
+    async function (
+        input,
+        init
+    ) {
+
+        let url = "";
+
+
+        if (
+            typeof input === "string"
+        ) {
+
+            url =
+                input;
+
+        } else if (
+            input instanceof Request
+        ) {
+
+            url =
+                input.url;
+
+        } else if (
+            input &&
+            input.url
+        ) {
+
+            url =
+                input.url;
+
+        }
+
+
+        /*
+         * -----------------------------------------------------
+         * MERGED WASM
+         * -----------------------------------------------------
+         */
+
+        if (
+            url.endsWith(
+                "/" + WASM_FILE
+            )
+            ||
+            url ===
+                BUILD_ROOT +
+                WASM_FILE
+        ) {
+
+            if (
+                !mergedWasmURL
+            ) {
+
+                throw new Error(
+                    "Merged WASM is not ready yet."
+                );
+
+            }
+
+
+            console.log(
+                "[Night Incident] Using merged WASM."
+            );
+
+
+            return originalFetch(
+                mergedWasmURL,
+                init
+            );
+
+        }
+
+
+        /*
+         * -----------------------------------------------------
+         * MERGED DATA
+         * -----------------------------------------------------
+         */
+
+        if (
+            url.endsWith(
+                "/" + DATA_FILE
+            )
+            ||
+            url ===
+                BUILD_ROOT +
+                DATA_FILE
+        ) {
+
+            if (
+                !mergedDataURL
+            ) {
+
+                throw new Error(
+                    "Merged DATA is not ready yet."
+                );
+
+            }
+
+
+            console.log(
+                "[Night Incident] Using merged DATA."
+            );
+
+
+            return originalFetch(
+                mergedDataURL,
+                init
+            );
+
+        }
+
+
+        /*
+         * -----------------------------------------------------
+         * CRAZYGAMES ADDRESSABLES
+         * -----------------------------------------------------
+         */
+
+        if (
+            url.startsWith(
+                CRAZYGAMES_MURDERER_ROOT
+            )
+        ) {
+
+            const path =
+                url.substring(
+                    CRAZYGAMES_MURDERER_ROOT.length
+                );
+
+
+            let localURL;
+
+
+            /*
+             * Actual local settings file:
+             *
+             * StreamingAssets/settings.json
+             */
+
+            if (
+                path ===
+                "aa/settings.json"
+            ) {
+
+                localURL =
+                    STREAMING_ROOT +
+                    "settings.json";
+
+            } else {
+
+                localURL =
+                    STREAMING_ROOT +
+                    path;
+
+            }
+
+
+            console.log(
+                "[Night Incident] CDN redirect:",
+                url,
+                "=>",
+                localURL
+            );
+
+
+            if (
+                input instanceof Request
+            ) {
+
+                input =
+                    new Request(
+                        localURL,
+                        input
+                    );
+
+            } else {
+
+                input =
+                    localURL;
+
+            }
+
+        }
+
+
+        /*
+         * -----------------------------------------------------
+         * OLD CRAZYGAMES STREAMINGASSETS
+         * -----------------------------------------------------
+         */
+
+        else if (
+            url.startsWith(
+                CRAZYGAMES_STREAMING_ROOT
+            )
+        ) {
+
+            const path =
+                url.substring(
+                    CRAZYGAMES_STREAMING_ROOT.length
+                );
+
+
+            let localURL;
+
+
+            if (
+                path ===
+                "aa/settings.json"
+            ) {
+
+                localURL =
+                    STREAMING_ROOT +
+                    "settings.json";
+
+            } else {
+
+                localURL =
+                    STREAMING_ROOT +
+                    path;
+
+            }
+
+
+            console.log(
+                "[Night Incident] Old CDN redirect:",
+                url,
+                "=>",
+                localURL
+            );
+
+
+            if (
+                input instanceof Request
+            ) {
+
+                input =
+                    new Request(
+                        localURL,
+                        input
+                    );
+
+            } else {
+
+                input =
+                    localURL;
+
+            }
+
+        }
+
+
+        /*
+         * -----------------------------------------------------
+         * BAD GENERATED URL
+         * -----------------------------------------------------
+         */
+
+        else if (
+            url.startsWith(
+                "https://www.crazygames.com/games/murderer/"
+            )
+        ) {
+
+            const path =
+                url.substring(
+                    "https://www.crazygames.com/games/murderer/"
+                        .length
+                );
+
+
+            const localURL =
+                GAME_ROOT +
+                path;
+
+
+            console.log(
+                "[Night Incident] Fixed bad URL:",
+                url,
+                "=>",
+                localURL
+            );
+
+
+            if (
+                input instanceof Request
+            ) {
+
+                input =
+                    new Request(
+                        localURL,
+                        input
+                    );
+
+            } else {
+
+                input =
+                    localURL;
+
+            }
+
+        }
+
+
+        /*
+         * -----------------------------------------------------
+         * GENERIC CRAZYGAMES STREAMINGASSETS
+         * -----------------------------------------------------
+         */
+
+        else if (
+            url.includes(
+                "crazygames.com"
+            )
+            &&
+            url.includes(
+                "/StreamingAssets/"
+            )
+        ) {
+
+            const marker =
+                "/StreamingAssets/";
+
+
+            const index =
+                url.indexOf(
+                    marker
+                );
+
+
+            const path =
+                url.substring(
+                    index +
+                    marker.length
+                );
+
+
+            let localURL;
+
+
+            if (
+                path ===
+                "aa/settings.json"
+            ) {
+
+                localURL =
+                    STREAMING_ROOT +
+                    "settings.json";
+
+            } else {
+
+                localURL =
+                    STREAMING_ROOT +
+                    path;
+
+            }
+
+
+            console.log(
+                "[Night Incident] Generic StreamingAssets redirect:",
+                url,
+                "=>",
+                localURL
+            );
+
+
+            if (
+                input instanceof Request
+            ) {
+
+                input =
+                    new Request(
+                        localURL,
+                        input
+                    );
+
+            } else {
+
+                input =
+                    localURL;
+
+            }
+
+        }
+
+
+        return originalFetch(
+            input,
+            init
+        );
+
+    };
+
+
+/* =========================================================
+   XHR INTERCEPTOR
+   =========================================================
+
+   Some Unity versions use XHR instead of fetch.
+
+   The merged Blob URLs are prepared before Unity starts,
+   so we can synchronously replace the original .wasm/.data
+   requests with their Blob URLs.
+   ========================================================= */
+
+const originalXHROpen =
+    XMLHttpRequest.prototype.open;
+
+
+XMLHttpRequest.prototype.open =
+    function (
+        method,
+        url,
+        async,
+        user,
+        password
+    ) {
+
+        let newURL =
+            String(url);
+
+
+        /*
+         * Merged WASM.
+         */
+
+        if (
+            newURL.endsWith(
+                "/" + WASM_FILE
+            )
+            &&
+            mergedWasmURL
+        ) {
+
+            console.log(
+                "[Night Incident] XHR -> merged WASM"
+            );
+
+
+            newURL =
+                mergedWasmURL;
+
+        }
+
+
+        /*
+         * Merged DATA.
+         */
+
+        else if (
+            newURL.endsWith(
+                "/" + DATA_FILE
+            )
+            &&
+            mergedDataURL
+        ) {
+
+            console.log(
+                "[Night Incident] XHR -> merged DATA"
+            );
+
+
+            newURL =
+                mergedDataURL;
+
+        }
+
+
+        /*
+         * CrazyGames StreamingAssets.
+         */
+
+        else if (
+            newURL.startsWith(
+                CRAZYGAMES_MURDERER_ROOT
+            )
+        ) {
+
+            const path =
+                newURL.substring(
+                    CRAZYGAMES_MURDERER_ROOT.length
+                );
+
+
+            if (
+                path ===
+                "aa/settings.json"
+            ) {
+
+                newURL =
+                    STREAMING_ROOT +
+                    "settings.json";
+
+            } else {
+
+                newURL =
+                    STREAMING_ROOT +
+                    path;
+
+            }
+
+
+            console.log(
+                "[Night Incident] XHR CDN redirect:",
+                newURL
+            );
+
+        }
+
+
+        /*
+         * Old CrazyGames StreamingAssets.
+         */
+
+        else if (
+            newURL.startsWith(
+                CRAZYGAMES_STREAMING_ROOT
+            )
+        ) {
+
+            const path =
+                newURL.substring(
+                    CRAZYGAMES_STREAMING_ROOT.length
+                );
+
+
+            if (
+                path ===
+                "aa/settings.json"
+            ) {
+
+                newURL =
+                    STREAMING_ROOT +
+                    "settings.json";
+
+            } else {
+
+                newURL =
+                    STREAMING_ROOT +
+                    path;
+
+            }
+
+
+            console.log(
+                "[Night Incident] XHR old CDN redirect:",
+                newURL
+            );
+
+        }
+
+
+        return originalXHROpen.call(
+            this,
+            method,
+            newURL,
+            async,
+            user,
+            password
+        );
+
+    };
+
+
+/* =========================================================
+   CRAZYGAMES SDK SHIM
+   ========================================================= */
+
+var msgQueue = [];
+
+var gameInstance = null;
+
+
+function sendToUnity(
+    obj,
+    method,
+    param
+) {
+
+    if (gameInstance) {
+
+        try {
+
+            gameInstance.SendMessage(
+                obj,
+                method,
+                param
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[Night Incident] SendMessage failed:",
+                e
+            );
+
+        }
+
+    } else {
+
+        msgQueue.push([
+            obj,
+            method,
+            param
+        ]);
+
+    }
+
+}
+
+
+window.unityInstance = {
+    SendMessage: sendToUnity
+};
+
+
+var sdk = {
+
+    init: function (cfg) {
+
+        console.log(
+            "[Night Incident] CrazyGames SDK init"
+        );
+
+
+        if (
+            cfg &&
+            cfg.crazySDKObjectName
+        ) {
+
+            sendToUnity(
+                cfg.crazySDKObjectName,
+                "OnSDKInit"
+            );
+
+        }
+
+
+        return true;
+
+    },
+
+
+    gameplayStart: function () {
+
+        console.log(
+            "[Night Incident] gameplayStart"
+        );
+
+        return true;
+
+    },
+
+
+    gameplayStop: function () {
+
+        console.log(
+            "[Night Incident] gameplayStop"
+        );
+
+        return true;
+
+    },
+
+
+    happytime: function () {
+
+        return true;
+
+    },
+
+
+    requestAd: function () {
+
+        console.log(
+            "[Night Incident] Fake ad request"
+        );
+
+
+        setTimeout(
+            function () {
+
+                sendToUnity(
+                    "CrazyGames",
+                    "OnAdCompleted"
+                );
+
+
+                sendToUnity(
+                    "CrazyGames",
+                    "OnAdFinished",
+                    "true"
+                );
+
+            },
+            50
+        );
+
+
+        return true;
+
+    },
+
+
+    requestBanners: function () {
+
+        return true;
+
+    },
+
+
+    requestInviteUrl: function () {
+
+        return true;
+
+    },
+
+
+    screenshotReceived: function () {
+
+        return true;
+
+    }
+
+};
+
+
+window.Crazygames =
+    sdk;
+
+
+window.CrazyGames =
+    sdk;
+
+
+/* =========================================================
+   UNITY ELEMENTS
+   ========================================================= */
+
+const canvas =
+    document.getElementById(
+        "unity-canvas"
+    );
+
+
+const loadingScreen =
+    document.getElementById(
+        "loadingScreen"
+    );
+
+
+const progressBar =
+    document.getElementById(
+        "progressBar"
+    );
+
+
+const percentage =
+    document.getElementById(
+        "percentage"
+    );
+
+
+const loadingText =
+    document.getElementById(
+        "loadingText"
+    );
+
+
+const errorBox =
+    document.getElementById(
+        "error"
+    );
+
+
+/* =========================================================
+   PROGRESS
+   ========================================================= */
+
+function updateProgress(
+    progress
+) {
+
+    const percent =
+        Math.round(
+            progress * 100
+        );
+
+
+    progressBar.style.width =
+        percent + "%";
+
+
+    percentage.textContent =
+        percent + "%";
+
+
+    if (
+        percent >= 90
+    ) {
+
+        loadingText.innerHTML =
+            'Starting<span class="dots"></span>';
+
+    }
+
+}
+
+
+/* =========================================================
+   ERROR
+   ========================================================= */
+
+function showError(
+    message
+) {
+
+    console.error(
+        "[Night Incident]",
+        message
+    );
+
+
+    errorBox.style.display =
+        "block";
+
+
+    errorBox.textContent =
+        "Unable to start Night Incident: " +
+        message;
+
+}
+
+
+/* =========================================================
+   UNITY BUILD
+   ========================================================= */
+
+const buildUrl =
+    GAME_ROOT +
+    "Build";
+
+
+const loaderUrl =
+    buildUrl +
+    "/30951b85d2401778daff579e0e9bcc24.loader.js";
+
+
+/* =========================================================
+   UNITY CONFIG
+   ========================================================= */
+
+const config = {
+
+    /*
+     * These remain the ORIGINAL Unity filenames.
+     *
+     * fetch/XHR interception supplies the merged files.
+     */
+
+    dataUrl:
+        buildUrl +
+        "/ce2bc2cd199b72ca1197c05bcc7654c2.data",
+
+
+    frameworkUrl:
+        buildUrl +
+        "/ad6eac22a159a5de29d88a18e2181168.framework.js",
+
+
+    codeUrl:
+        buildUrl +
+        "/2e13bc4ed0691d8104a2ab4846407e06.wasm",
+
+
+    streamingAssetsUrl:
+        STREAMING_ROOT,
+
+
+    companyName:
+        "Night Incident",
+
+
+    productName:
+        "Night Incident",
+
+
+    productVersion:
+        "1.0",
+
+
+    showBanner:
+        function (
+            message,
+            type
+        ) {
+
+            console.log(
+                "[Unity]",
+                type,
+                message
+            );
+
+        }
+
+};
+
+
+/* =========================================================
+   WEBGL CONTEXT
+   ========================================================= */
+
+canvas.addEventListener(
+    "webglcontextlost",
+    function (event) {
+
+        event.preventDefault();
+
+
+        showError(
+            "WebGL context was lost."
+        );
+
+    }
+);
+
+
+/* =========================================================
+   START GAME
+   ========================================================= */
+
+async function startGame() {
+
+    try {
+
+        /*
+         * -----------------------------------------------------
+         * STEP 1:
+         * Merge WASM parts.
+         * -----------------------------------------------------
+         */
+
+        loadingText.innerHTML =
+            'Merging game code<span class="dots"></span>';
+
+
+        updateProgress(
+            0.02
+        );
+
+
+        mergedWasmURL =
+            await mergeParts(
+                WASM_PARTS,
+                "WASM",
+                "application/wasm"
+            );
+
+
+        /*
+         * -----------------------------------------------------
+         * STEP 2:
+         * Merge DATA parts.
+         * -----------------------------------------------------
+         */
+
+        loadingText.innerHTML =
+            'Merging game data<span class="dots"></span>';
+
+
+        mergedDataURL =
+            await mergeParts(
+                DATA_PARTS,
+                "DATA",
+                "application/octet-stream"
+            );
+
+
+        updateProgress(
+            0.50
+        );
+
+
+        console.log(
+            "[Night Incident] Split build successfully merged."
+        );
+
+
+        console.log(
+            "[Night Incident] WASM:",
+            mergedWasmURL
+        );
+
+
+        console.log(
+            "[Night Incident] DATA:",
+            mergedDataURL
+        );
+
+
+        /*
+         * -----------------------------------------------------
+         * STEP 3:
+         * Load Unity loader.
+         * -----------------------------------------------------
+         */
+
+        loadingText.innerHTML =
+            'Loading Unity<span class="dots"></span>';
+
+
+        const script =
+            document.createElement(
+                "script"
+            );
+
+
+        script.src =
+            loaderUrl;
+
+
+        script.onload =
+            function () {
+
+                console.log(
+                    "[Night Incident] Unity loader loaded."
+                );
+
+
+                if (
+                    typeof createUnityInstance !==
+                    "function"
+                ) {
+
+                    showError(
+                        "createUnityInstance() was not found."
+                    );
+
+                    return;
+
+                }
+
+
+                createUnityInstance(
+                    canvas,
+                    config,
+                    function (progress) {
+
+                        /*
+                         * Unity gets the remaining
+                         * 50% of the loading bar.
+                         */
+
+                        updateProgress(
+                            0.50 +
+                            progress * 0.50
+                        );
+
+                    }
+                )
+
+
+                .then(
+                    function (instance) {
+
+                        console.log(
+                            "[Night Incident] Unity initialized."
+                        );
+
+
+                        gameInstance =
+                            instance;
+
+
+                        window.unityInstance =
+                            instance;
+
+
+                        window.gameInstance =
+                            instance;
+
+
+                        /*
+                         * Send queued SDK messages.
+                         */
+
+                        msgQueue.forEach(
+                            function (msg) {
+
+                                try {
+
+                                    instance.SendMessage(
+                                        msg[0],
+                                        msg[1],
+                                        msg[2]
+                                    );
+
+                                } catch (e) {
+
+                                    console.warn(
+                                        "[Night Incident] Queued message failed:",
+                                        e
+                                    );
+
+                                }
+
+                            }
+                        );
+
+
+                        msgQueue = [];
+
+
+                        /*
+                         * Fully loaded.
+                         */
+
+                        progressBar.style.width =
+                            "100%";
+
+
+                        percentage.textContent =
+                            "100%";
+
+
+                        loadingText.textContent =
+                            "Ready";
+
+
+                        setTimeout(
+                            function () {
+
+                                loadingScreen.style.opacity =
+                                    "0";
+
+                                loadingScreen.style.visibility =
+                                    "hidden";
+
+
+                                setTimeout(
+                                    function () {
+
+                                        loadingScreen.style.display =
+                                            "none";
+
+                                    },
+                                    600
+                                );
+
+                            },
+                            400
+                        );
+
+                    }
+                )
+
+
+                .catch(
+                    function (message) {
+
+                        showError(
+                            message
+                        );
+
+                    }
+                );
+
+            };
+
+
+        script.onerror =
+            function () {
+
+                showError(
+                    "The Unity loader could not be loaded."
+                );
+
+            };
+
+
+        document.body.appendChild(
+            script
+        );
+
+    } catch (error) {
+
+        showError(
+            error &&
+            error.stack
+                ? error.stack
+                : error
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   START
+   ========================================================= */
+
+startGame();
+
+</script>
+
+</body>
+</html>

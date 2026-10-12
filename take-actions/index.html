@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+
+<html lang="en-us">
+
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="initial-scale=1.0, width=device-width">
+
+<title>Take Actions</title>
+
+<script src="crazygames-sdk-v3.js"></script>
+
+<script src="TemplateData/main.js"></script>
+
+<script src="TemplateData/leaderboards.js"></script>
+
+<script src="TemplateData/auth.js"></script>
+
+<script src="TemplateData/purchases.js"></script>
+
+<script src="TemplateData/othergames.js"></script>
+
+<script src="TemplateData/utils.js"></script>
+
+<link rel="stylesheet" href="TemplateData/style.css">
+
+</head>
+
+<body style="text-align:center">
+
+<div id="unity-container" class="unity-desktop">
+
+```
+<canvas
+    id="unity-canvas"
+    tabindex="-1"
+    style="outline:none;background:#231F20">
+</canvas>
+
+<div id="unity-loading-bar">
+
+    <div id="unity-logo"></div>
+
+    <div id="unity-progress-bar-empty">
+        <div id="unity-progress-bar-full"></div>
+    </div>
+
+</div>
+```
+
+</div>
+
+<script>
+
+var myGameInstance = null;
+
+var container = document.querySelector("#unity-container");
+var canvas = document.querySelector("#unity-canvas");
+var progressBarFull = document.querySelector("#unity-progress-bar-full");
+var loadingBar = document.querySelector("#unity-loading-bar");
+
+var player;
+var lb;
+var payments;
+
+
+/* =====================================================
+   CRAZYGAMES URL
+===================================================== */
+
+try {
+
+    Object.defineProperty(document, "URL", {
+        get: function() {
+            return "https://www.crazygames.com/game/take-actions";
+        },
+        configurable: true
+    });
+
+    Object.defineProperty(document, "documentURI", {
+        get: function() {
+            return "https://www.crazygames.com/game/take-actions";
+        },
+        configurable: true
+    });
+
+} catch(e) {
+
+    console.warn("[CrazyGames] URL override failed", e);
+
+}
+
+
+/* =====================================================
+   BUILD
+===================================================== */
+
+var buildUrl = "Build";
+
+var loaderUrl =
+    buildUrl +
+    "/a8c45d3cbfc9f7b64c6ac6741e53670e.loader.js";
+
+
+/*
+ * WASM is split into four 20 MiB pieces.
+ */
+
+var wasmParts = [
+    buildUrl + "/08548cc9e9e7faf2de53e7395ca0e374.wasm.part001",
+    buildUrl + "/08548cc9e9e7faf2de53e7395ca0e374.wasm.part002",
+    buildUrl + "/08548cc9e9e7faf2de53e7395ca0e374.wasm.part003",
+    buildUrl + "/08548cc9e9e7faf2de53e7395ca0e374.wasm.part004"
+];
+
+
+var config = {
+
+    dataUrl:
+        buildUrl +
+        "/19d4a65edda865899cf206cd234b0675.data",
+
+    frameworkUrl:
+        buildUrl +
+        "/8b2f76917dbbbfaa33521ae605e0b34e.framework.js",
+
+    /*
+     * Filled after the four WASM pieces
+     * have been downloaded and combined.
+     */
+    codeUrl: null,
+
+    streamingAssetsUrl:
+        "https://take-actions.game-files.crazygames.com/take-actions/5/StreamingAssets",
+
+    companyName:
+        "DefaultCompany",
+
+    productName:
+        "Take Actions",
+
+    productVersion:
+        "1.0",
+
+    showBanner:
+        null,
+
+    webglContextAttributes:
+    {
+        preserveDrawingBuffer:true
+    }
+
+};
+
+
+/* =====================================================
+   MOBILE DPR
+===================================================== */
+
+if (
+    /iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent)
+) {
+
+    config.devicePixelRatio = 1;
+
+}
+
+
+/* =====================================================
+   CANVAS
+===================================================== */
+
+canvas.style.width = "100%";
+canvas.style.height = "100%";
+
+
+/* =====================================================
+   AUDIO UNLOCK
+===================================================== */
+
+var audioUnlocked = false;
+
+function unlockAudio() {
+
+    if (audioUnlocked)
+        return;
+
+    audioUnlocked = true;
+
+    try {
+
+        var AudioContext =
+            window.AudioContext ||
+            window.webkitAudioContext;
+
+        if (AudioContext) {
+
+            var ctx = new AudioContext();
+
+            if (ctx.state === "suspended") {
+
+                ctx.resume()
+                    .then(function() {
+
+                        console.log(
+                            "[Audio] Browser audio unlocked"
+                        );
+
+                    })
+                    .catch(function(){});
+
+            } else {
+
+                console.log(
+                    "[Audio] Browser audio unlocked"
+                );
+
+            }
+
+        }
+
+    } catch(e) {
+
+        console.warn(
+            "[Audio] unlock failed",
+            e
+        );
+
+    }
+
+}
+
+document.addEventListener(
+    "pointerdown",
+    unlockAudio,
+    {passive:true}
+);
+
+document.addEventListener(
+    "keydown",
+    unlockAudio
+);
+
+
+/* =====================================================
+   UNITY MESSAGE SHIM
+===================================================== */
+
+window.setUnityInstance = function(instance) {
+
+    myGameInstance = instance;
+
+    window.myGameInstance = instance;
+    window.unityInstance = instance;
+
+    console.log("[Unity] Instance attached");
+
+};
+
+
+/* =====================================================
+   CRAZYGAMES GAMEPLAY
+===================================================== */
+
+function gameplayStart() {
+
+    try {
+
+        return window.CrazyGames.SDK.game.gameplayStart();
+
+    } catch(e) {
+
+        console.warn("[CrazyGames] gameplayStart", e);
+
+    }
+
+}
+
+
+function gameplayStop() {
+
+    try {
+
+        return window.CrazyGames.SDK.game.gameplayStop();
+
+    } catch(e) {
+
+        console.warn("[CrazyGames] gameplayStop", e);
+
+    }
+
+}
+
+
+function happyTime() {
+
+    try {
+
+        return window.CrazyGames.SDK.game.happytime();
+
+    } catch(e) {
+
+        console.warn("[CrazyGames] happytime", e);
+
+    }
+
+}
+
+
+function setGameStartLoading() {
+
+    try {
+
+        return window.CrazyGames.SDK.game.loadingStart();
+
+    } catch(e) {
+
+        console.warn("[CrazyGames] loadingStart", e);
+
+    }
+
+}
+
+
+function setGameLoaded() {
+
+    console.log("[setGameLoaded] ready");
+
+    try {
+
+        return window.CrazyGames.SDK.game.loadingStop();
+
+    } catch(e) {
+
+        console.warn("[CrazyGames] loadingStop", e);
+
+    }
+
+}
+
+
+/* =====================================================
+   LANGUAGE
+===================================================== */
+
+function getLanguage() {
+
+    if (!myGameInstance)
+        return;
+
+    try {
+
+        myGameInstance.SendMessage(
+            "Webgl",
+            "GetLanguageCallback",
+            navigator.language
+        );
+
+    } catch(e) {
+
+        console.warn("[getLanguage]", e);
+
+    }
+
+}
+
+
+/* =====================================================
+   DEVICE
+===================================================== */
+
+function getDevice() {
+
+    if (!myGameInstance)
+        return;
+
+    var data =
+        /iPhone|iPad|iPod|Android|Mobi/i.test(navigator.userAgent)
+        ? "mobile"
+        : "desktop";
+
+    try {
+
+        myGameInstance.SendMessage(
+            "Webgl",
+            "GetDeviceCallback",
+            data
+        );
+
+    } catch(e) {
+
+        console.warn("[getDevice]", e);
+
+    }
+
+}
+
+
+/* =====================================================
+   PLAYER DATA
+===================================================== */
+
+function getTimestampInSeconds() {
+
+    return Math.floor(Date.now() / 1000);
+
+}
+
+
+function IsDataValid(data) {
+
+    return (
+        data != null &&
+        typeof data === "object" &&
+        Object.keys(data).length > 0 &&
+        "base64" in data
+    );
+
+}
+
+
+function GetDataBase64(data) {
+
+    if (IsDataValid(data))
+        return data.base64;
+
+    return "";
+
+}
+
+
+function PickData(local, cloud) {
+
+    if (!IsDataValid(local))
+        return cloud;
+
+    if (!IsDataValid(cloud))
+        return local;
+
+    var localTimestamp =
+        Number(local.timestamp || 0);
+
+    var cloudTimestamp =
+        Number(cloud.timestamp || 0);
+
+    console.log(
+        "[getPlayerData] local.timestamp:",
+        localTimestamp
+    );
+
+    console.log(
+        "[getPlayerData] cloud.timestamp:",
+        cloudTimestamp
+    );
+
+    if (localTimestamp > cloudTimestamp) {
+
+        console.log(
+            "[getPlayerData] picked local data"
+        );
+
+        return local;
+
+    }
+
+    console.log(
+        "[getPlayerData] picked cloud data"
+    );
+
+    return cloud;
+
+}
+
+
+function getPlayerData() {
+
+    if (!myGameInstance)
+        return;
+
+    var localData = null;
+
+    try {
+
+        var localStr =
+            localStorage.getItem(
+                "take_actions_data"
+            );
+
+        if (localStr) {
+
+            localData =
+                JSON.parse(localStr);
+
+            console.log(
+                "[getPlayerData] localStorage parsed"
+            );
+
+        }
+
+    } catch(e) {
+
+        console.warn(
+            "[getPlayerData] local parse failed",
+            e
+        );
+
+    }
+
+
+    var cloudData = null;
+
+    try {
+
+        var cloudString =
+            window.CrazyGames.SDK.data.getItem(
+                "take_actions_data"
+            );
+
+        if (cloudString) {
+
+            cloudData =
+                JSON.parse(cloudString);
+
+        }
+
+    } catch(e) {
+
+        console.warn(
+            "[getPlayerData] cloud unavailable",
+            e
+        );
+
+    }
+
+
+    var pickedData =
+        PickData(localData, cloudData);
+
+    var base64 =
+        GetDataBase64(pickedData);
+
+    try {
+
+        myGameInstance.SendMessage(
+            "Webgl",
+            "GetPlayerDataCallback",
+            base64
+        );
+
+    } catch(e) {
+
+        console.warn(
+            "[getPlayerData] SendMessage failed",
+            e
+        );
+
+    }
+
+}
+
+
+function setPlayerData(gameName, version, base64) {
+
+    var data = {
+
+        timestamp:
+            getTimestampInSeconds(),
+
+        base64:
+            base64
+
+    };
+
+    var stringified =
+        JSON.stringify(data);
+
+    try {
+
+        localStorage.setItem(
+            "take_actions_data",
+            stringified
+        );
+
+    } catch(e) {
+
+        console.warn(
+            "[setPlayerData] local save failed",
+            e
+        );
+
+    }
+
+    try {
+
+        window.CrazyGames.SDK.data.setItem(
+            "take_actions_data",
+            stringified
+        );
+
+    } catch(e) {
+
+        console.warn(
+            "[setPlayerData] cloud save failed",
+            e
+        );
+
+    }
+
+    console.log("[setPlayerData] saved");
+
+}
+
+
+/* =====================================================
+   ADS
+===================================================== */
+
+async function showRewardAd() {
+
+    if (!myGameInstance)
+        return;
+
+    try {
+
+        var blocked =
+            await window.CrazyGames.SDK.ad.hasAdblock();
+
+        if (blocked) {
+
+            myGameInstance.SendMessage(
+                "Webgl",
+                "ShowRewardAdOnAdBlock"
+            );
+
+            return;
+
+        }
+
+        window.CrazyGames.SDK.ad.requestAd(
+            "rewarded",
+            {
+
+                adStarted:function() {
+
+                    if (myGameInstance) {
+
+                        myGameInstance.SendMessage(
+                            "Webgl",
+                            "ShowRewardAdOnOpen"
+                        );
+
+                    }
+
+                },
+
+                adFinished:function() {
+
+                    if (!myGameInstance)
+                        return;
+
+                    myGameInstance.SendMessage(
+                        "Webgl",
+                        "ShowRewardAdOnRewarded"
+                    );
+
+                    myGameInstance.SendMessage(
+                        "Webgl",
+                        "ShowRewardAdOnClose"
+                    );
+
+                },
+
+                adError:function() {
+
+                    if (myGameInstance) {
+
+                        myGameInstance.SendMessage(
+                            "Webgl",
+                            "ShowRewardAdOnError"
+                        );
+
+                    }
+
+                }
+
+            }
+        );
+
+    } catch(e) {
+
+        console.warn("[showRewardAd]", e);
+
+    }
+
+}
+
+
+function showFullscreenAd() {
+
+    if (!myGameInstance)
+        return;
+
+    try {
+
+        window.CrazyGames.SDK.ad.requestAd(
+            "midgame",
+            {
+
+                adStarted:function(){},
+
+                adFinished:function() {
+
+                    if (myGameInstance) {
+
+                        myGameInstance.SendMessage(
+                            "Webgl",
+                            "ShowFullscreenAdOnClose"
+                        );
+
+                    }
+
+                },
+
+                adError:function() {
+
+                    if (myGameInstance) {
+
+                        myGameInstance.SendMessage(
+                            "Webgl",
+                            "ShowFullscreenAdOnError"
+                        );
+
+                    }
+
+                }
+
+            }
+        );
+
+    } catch(e) {
+
+        console.warn("[showFullscreenAd]", e);
+
+    }
+
+}
+
+
+/* =====================================================
+   PREINIT
+===================================================== */
+
+function preInit() {
+
+    return true;
+
+}
+
+
+/* =====================================================
+   EVENTS
+===================================================== */
+
+function trackEvent(gameName, version, eventName, data) {
+
+    console.log(
+        "[trackEvent]",
+        eventName,
+        data
+    );
+
+}
+
+
+function trackDump(gameName, version, content) {
+
+    console.log(
+        "[trackDump]",
+        content
+    );
+
+}
+
+
+/* =====================================================
+   POINTER LOCK
+===================================================== */
+
+function resetWindowFocus() {
+
+    window.focus();
+    canvas.focus();
+
+}
+
+
+function lockCursor(value) {
+
+    return;
+
+}
+
+
+function lockChangeAlert() {
+
+    if (!myGameInstance)
+        return;
+
+    try {
+
+        if (document.pointerLockElement === canvas) {
+
+            myGameInstance.SendMessage(
+                "Webgl",
+                "OnPointerLocked"
+            );
+
+        } else {
+
+            myGameInstance.SendMessage(
+                "Webgl",
+                "OnPointerUnlocked"
+            );
+
+        }
+
+    } catch(e) {
+
+        console.warn("[PointerLock]", e);
+
+    }
+
+}
+
+document.addEventListener(
+    "pointerlockchange",
+    lockChangeAlert,
+    false
+);
+
+
+/* =====================================================
+   OTHER GAMES
+===================================================== */
+
+function getOtherGames() {
+
+    if (!myGameInstance)
+        return;
+
+    if (typeof otherGameList === "undefined") {
+
+        console.warn(
+            "[OtherGames] otherGameList unavailable"
+        );
+
+        return;
+
+    }
+
+    try {
+
+        myGameInstance.SendMessage(
+            "Webgl",
+            "GetOtherGamesCallback",
+            JSON.stringify(otherGameList)
+        );
+
+    } catch(e) {
+
+        console.warn("[OtherGames]", e);
+
+    }
+
+}
+
+
+function clickedOnOtherGameIcon(index, lang) {
+
+    try {
+
+        if (typeof otherGameList === "undefined")
+            return;
+
+        if (
+            index < 0 ||
+            index >= otherGameList.length
+        )
+            return;
+
+        var game =
+            otherGameList[index];
+
+        if (!game || !game.url)
+            return;
+
+        var url =
+            game.url[lang] ||
+            game.url[0];
+
+        if (url) {
+
+            window.open(
+                url,
+                "_blank"
+            );
+
+        }
+
+    } catch(e) {
+
+        console.warn("[OtherGames]", e);
+
+    }
+
+}
+
+
+/* =====================================================
+   COMBINE WASM PARTS
+===================================================== */
+
+async function loadSplitWasm() {
+
+    console.log(
+        "[WASM] Downloading " +
+        wasmParts.length +
+        " parts..."
+    );
+
+    var responses =
+        await Promise.all(
+            wasmParts.map(function(url) {
+
+                return fetch(url, {
+                    cache: "no-cache"
+                }).then(function(response) {
+
+                    if (!response.ok) {
+
+                        throw new Error(
+                            "Failed to load WASM part: " +
+                            url +
+                            " (" +
+                            response.status +
+                            ")"
+                        );
+
+                    }
+
+                    console.log(
+                        "[WASM] Loaded:",
+                        url
+                    );
+
+                    return response.arrayBuffer();
+
+                });
+
+            })
+        );
+
+
+    var totalSize = 0;
+
+    for (var i = 0; i < responses.length; i++) {
+
+        totalSize += responses[i].byteLength;
+
+    }
+
+
+    console.log(
+        "[WASM] Combining " +
+        responses.length +
+        " parts (" +
+        (totalSize / 1048576).toFixed(2) +
+        " MiB)"
+    );
+
+
+    var wasmBlob =
+        new Blob(
+            responses,
+            {
+                type: "application/wasm"
+            }
+        );
+
+
+    var wasmUrl =
+        URL.createObjectURL(wasmBlob);
+
+
+    console.log(
+        "[WASM] Combined successfully"
+    );
+
+
+    return wasmUrl;
+
+}
+
+
+/* =====================================================
+   START UNITY
+===================================================== */
+
+async function startGame() {
+
+    console.log("================================");
+    console.log("[BOOT] Starting Take Actions");
+    console.log("================================");
+
+    loadingBar.style.display = "block";
+
+
+    /* -------------------------------------------------
+       Verify CrazyGames SDK
+    ------------------------------------------------- */
+
+    if (
+        !window.CrazyGames ||
+        !window.CrazyGames.SDK
+    ) {
+
+        throw new Error(
+            "CrazyGames SDK was not loaded."
+        );
+
+    }
+
+    console.log(
+        "[BOOT] CrazyGames SDK available"
+    );
+
+
+    /* -------------------------------------------------
+       Loading start
+    ------------------------------------------------- */
+
+    try {
+
+        window.CrazyGames.SDK.game.loadingStart();
+
+        console.log(
+            "[CrazyGames] loadingStart"
+        );
+
+    } catch(e) {
+
+        console.warn(
+            "[CrazyGames] loadingStart failed",
+            e
+        );
+
+    }
+
+
+    /* -------------------------------------------------
+       Combine WASM
+    ------------------------------------------------- */
+
+    try {
+
+        config.codeUrl =
+            await loadSplitWasm();
+
+    } catch(error) {
+
+        console.error(
+            "[WASM] FAILED TO COMBINE WASM",
+            error
+        );
+
+        loadingBar.style.display = "none";
+
+        try {
+
+            window.CrazyGames.SDK.game.loadingStop();
+
+        } catch(e) {}
+
+        throw error;
+
+    }
+
+
+    /* -------------------------------------------------
+       Load Unity loader
+    ------------------------------------------------- */
+
+    if (
+        typeof createUnityInstance !==
+        "function"
+    ) {
+
+        console.log(
+            "[Unity] Loading Unity loader..."
+        );
+
+        await new Promise(function(resolve, reject) {
+
+            var script =
+                document.createElement("script");
+
+            script.src =
+                loaderUrl;
+
+            script.onload =
+                function() {
+
+                    console.log(
+                        "[Unity] Loader loaded"
+                    );
+
+                    resolve();
+
+                };
+
+            script.onerror =
+                function() {
+
+                    reject(
+                        new Error(
+                            "Unity loader failed to load: " +
+                            loaderUrl
+                        )
+                    );
+
+                };
+
+            document.body.appendChild(script);
+
+        });
+
+    }
+
+
+    if (
+        typeof createUnityInstance !==
+        "function"
+    ) {
+
+        throw new Error(
+            "createUnityInstance is still unavailable."
+        );
+
+    }
+
+
+    /* -------------------------------------------------
+       Create Unity instance
+    ------------------------------------------------- */
+
+    console.log(
+        "[Unity] Creating Unity instance..."
+    );
+
+
+    createUnityInstance(
+        canvas,
+        config,
+
+        function(progress) {
+
+            if (progressBarFull) {
+
+                progressBarFull.style.width =
+                    (100 * progress) + "%";
+
+            }
+
+        }
+
+    )
+
+    .then(function(unityInstance) {
+
+        myGameInstance =
+            unityInstance;
+
+        window.myGameInstance =
+            unityInstance;
+
+        window.unityInstance =
+            unityInstance;
+
+        console.log(
+            "[Unity] INSTANCE READY"
+        );
+
+
+        /* -----------------------------------------
+           Loading stop
+        ----------------------------------------- */
+
+        try {
+
+            window.CrazyGames.SDK.game.loadingStop();
+
+            console.log(
+                "[CrazyGames] loadingStop"
+            );
+
+        } catch(e) {
+
+            console.warn(
+                "[CrazyGames] loadingStop failed",
+                e
+            );
+
+        }
+
+
+        /* -----------------------------------------
+           Hide loading bar
+        ----------------------------------------- */
+
+        loadingBar.style.display =
+            "none";
+
+
+        /* -----------------------------------------
+           SDK callback
+        ----------------------------------------- */
+
+        try {
+
+            myGameInstance.SendMessage(
+                "Webgl",
+                "OnSDKInitialized"
+            );
+
+        } catch(e) {
+
+            console.warn(
+                "[Unity] OnSDKInitialized failed",
+                e
+            );
+
+        }
+
+
+        /* -----------------------------------------
+           Refresh callback
+        ----------------------------------------- */
+
+        window.addEventListener(
+            "beforeunload",
+            function() {
+
+                if (!myGameInstance)
+                    return;
+
+                try {
+
+                    myGameInstance.SendMessage(
+                        "Webgl",
+                        "OnRefresh"
+                    );
+
+                } catch(e) {}
+
+            }
+        );
+
+
+        /* -----------------------------------------
+           Focus
+        ----------------------------------------- */
+
+        canvas.focus();
+
+
+        console.log("================================");
+        console.log("[BOOT] TAKE ACTIONS READY");
+        console.log("================================");
+
+    })
+
+    .catch(function(error) {
+
+        console.error(
+            "[Unity] START ERROR",
+            error
+        );
+
+        loadingBar.style.display =
+            "none";
+
+        try {
+
+            window.CrazyGames.SDK.game.loadingStop();
+
+        } catch(e) {}
+
+    });
+
+}
+
+
+/* =====================================================
+   CRAZYGAMES SDK INITIALIZATION
+===================================================== */
+
+async function boot() {
+
+    try {
+
+        console.log(
+            "[BOOT] Initializing CrazyGames SDK..."
+        );
+
+
+        if (
+            !window.CrazyGames ||
+            !window.CrazyGames.SDK
+        ) {
+
+            throw new Error(
+                "CrazyGames.SDK is undefined. Check crazygames-sdk-v3.js."
+            );
+
+        }
+
+
+        await window.CrazyGames.SDK.init();
+
+
+        console.log(
+            "[CrazyGames] SDK initialized"
+        );
+
+
+        await startGame();
+
+
+    } catch(e) {
+
+        console.error(
+            "[BOOT ERROR]",
+            e
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   START
+===================================================== */
+
+boot();
+
+
+/* =====================================================
+   INPUT
+===================================================== */
+
+window.addEventListener(
+    "wheel",
+    function(event) {
+
+        if (
+            document.activeElement === canvas
+        ) {
+
+            event.preventDefault();
+
+        }
+
+    },
+    {
+        passive:false
+    }
+);
+
+
+window.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            document.activeElement !== canvas
+        ) {
+
+            return;
+
+        }
+
+        if (
+            event.key === "ArrowUp" ||
+            event.key === "ArrowDown" ||
+            event.key === "ArrowLeft" ||
+            event.key === "ArrowRight" ||
+            event.key === " "
+        ) {
+
+            event.preventDefault();
+
+        }
+
+    }
+);
+
+
+document.addEventListener(
+    "contextmenu",
+    function(event) {
+
+        if (
+            event.target === canvas
+        ) {
+
+            event.preventDefault();
+
+        }
+
+    }
+);
+
+
+/* =====================================================
+   WEBGL CONTEXT LOSS
+===================================================== */
+
+canvas.addEventListener(
+    "webglcontextlost",
+    function(e) {
+
+        e.preventDefault();
+
+        console.warn(
+            "[WebGL] Context lost"
+        );
+
+    },
+    false
+);
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html lang="en-us">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>Time Shooter</title>
+
+  <script src="crazygames-sdk-v3.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #game {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+
+    #game canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #000;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: #000;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+
+    #loadingText {
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+
+    #bar {
+      width: min(400px, 80vw);
+      height: 8px;
+      background: #333;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    #barFill {
+      width: 0%;
+      height: 100%;
+      background: #fff;
+      transition: width .15s;
+    }
+
+    #error {
+      display: none;
+      max-width: 85%;
+      margin-top: 20px;
+      color: #ff5555;
+      font-family: monospace;
+      text-align: center;
+      white-space: pre-wrap;
+    }
+  </style>
+
+</head>
+
+<body>
+
+<div id="game">
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+
+<div id="loading">
+  <div id="loadingText">Loading Time Shooter...</div>
+
+  <div id="bar">
+    <div id="barFill"></div>
+  </div>
+
+  <div id="error"></div>
+</div>
+
+<script>
+/* =========================================================
+   CrazyGames compatibility
+   ========================================================= */
+
+Object.defineProperty(document, 'URL', {
+  get: function() {
+    return 'https://www.crazygames.com/game/time-shooter';
+  },
+  configurable: true
+});
+
+Object.defineProperty(document, 'documentURI', {
+  get: function() {
+    return 'https://www.crazygames.com/game/time-shooter';
+  },
+  configurable: true
+});
+
+
+var msgQueue = [];
+var gameInstance = null;
+
+
+function sendToUnity(obj, method, param) {
+  if (gameInstance) {
+    try {
+      gameInstance.SendMessage(
+        obj,
+        method,
+        param
+      );
+    } catch (e) {
+      console.warn(
+        '[CrazyGames] SendMessage failed:',
+        e
+      );
+    }
+  } else {
+    msgQueue.push([
+      obj,
+      method,
+      param
+    ]);
+  }
+}
+
+
+window.unityInstance = {
+  SendMessage: sendToUnity
+};
+
+
+var sdk = {
+
+  init: function(cfg) {
+    if (cfg && cfg.crazySDKObjectName) {
+      sendToUnity(
+        cfg.crazySDKObjectName,
+        'OnSDKInit'
+      );
+    }
+
+    return true;
+  },
+
+  gameplayStart: function() {
+    return true;
+  },
+
+  gameplayStop: function() {
+    return true;
+  },
+
+  happytime: function() {
+    return true;
+  },
+
+  requestAd: function() {
+    setTimeout(function() {
+
+      sendToUnity(
+        'CrazyGames',
+        'OnAdCompleted'
+      );
+
+      sendToUnity(
+        'CrazyGames',
+        'OnAdFinished',
+        'true'
+      );
+
+    }, 50);
+
+    return true;
+  },
+
+  requestBanners: function() {
+    return true;
+  },
+
+  requestInviteUrl: function() {
+    return true;
+  },
+
+  screenshotReceived: function() {
+    return true;
+  }
+};
+
+
+window.Crazygames = sdk;
+window.CrazyGames = sdk;
+
+
+/* =========================================================
+   WebGL context
+   ========================================================= */
+
+document
+  .getElementById('unity-canvas')
+  .addEventListener(
+    'webglcontextlost',
+    function(e) {
+      e.preventDefault();
+    }
+  );
+
+
+/* =========================================================
+   Unity files
+   ========================================================= */
+
+var buildUrl = 'Build';
+
+var loaderUrl =
+  buildUrl +
+  '/e9dadf13d3d2ec49cc33413f986a95cb.js';
+
+var config = {
+
+  dataUrl:
+    buildUrl +
+    '/f3d4230edb2acd7864a0f0b068103867.data',
+
+  frameworkUrl:
+    buildUrl +
+    '/eae0043f6b864f6011d9857b0c28cb47.js',
+
+  codeUrl:
+    buildUrl +
+    '/90262fd48e4c8b485371d464ec6f7368.wasm',
+
+  streamingAssetsUrl:
+    'StreamingAssets',
+
+  companyName:
+    'GoGoMan',
+
+  productName:
+    'Time Shooter',
+
+  productVersion:
+    '1.0',
+
+  showBanner:
+    function(msg, type) {
+      console.log(
+        '[Unity]',
+        type,
+        msg
+      );
+    }
+};
+
+
+/* =========================================================
+   Loading progress
+   ========================================================= */
+
+function setProgress(value, text) {
+
+  document.getElementById(
+    'barFill'
+  ).style.width =
+    (value * 100) + '%';
+
+  if (text) {
+    document.getElementById(
+      'loadingText'
+    ).textContent = text;
+  }
+}
+
+
+function showError(error) {
+
+  console.error(
+    '[Time Shooter]',
+    error
+  );
+
+  document.getElementById(
+    'loadingText'
+  ).style.display = 'none';
+
+  document.getElementById(
+    'bar'
+  ).style.display = 'none';
+
+  var errorBox =
+    document.getElementById('error');
+
+  errorBox.style.display = 'block';
+
+  errorBox.textContent =
+    String(
+      error && error.stack
+        ? error.stack
+        : error
+    );
+}
+
+
+/* =========================================================
+   Load Unity loader
+   ========================================================= */
+
+setProgress(
+  0.05,
+  'Loading Unity...'
+);
+
+
+var script =
+  document.createElement('script');
+
+
+script.src =
+  loaderUrl;
+
+
+script.onload =
+  function() {
+
+    setProgress(
+      0.15,
+      'Starting Time Shooter...'
+    );
+
+
+    var canvas =
+      document.getElementById(
+        'unity-canvas'
+      );
+
+
+    createUnityInstance(
+      canvas,
+      config,
+      function(progress) {
+
+        setProgress(
+          0.15 +
+          progress * 0.85,
+
+          'Loading Time Shooter... ' +
+          Math.round(progress * 100) +
+          '%'
+        );
+
+      }
+    )
+    .then(function(instance) {
+
+      gameInstance =
+        instance;
+
+      window.unityInstance =
+        instance;
+
+
+      /* Flush queued SDK messages */
+
+      for (
+        var i = 0;
+        i < msgQueue.length;
+        i++
+      ) {
+
+        try {
+
+          instance.SendMessage(
+            msgQueue[i][0],
+            msgQueue[i][1],
+            msgQueue[i][2]
+          );
+
+        } catch (e) {
+
+          console.warn(
+            '[CrazyGames] Queued message failed:',
+            e
+          );
+
+        }
+      }
+
+
+      msgQueue.length = 0;
+
+
+      setProgress(
+        1,
+        'Time Shooter loaded'
+      );
+
+
+      setTimeout(
+        function() {
+
+          document.getElementById(
+            'loading'
+          ).style.display = 'none';
+
+        },
+        500
+      );
+
+
+      console.log(
+        '[Time Shooter] Unity started'
+      );
+
+    })
+    .catch(function(error) {
+
+      showError(error);
+
+    });
+  };
+
+
+script.onerror =
+  function() {
+
+    showError(
+      'Failed to load Unity loader:\n' +
+      loaderUrl
+    );
+
+  };
+
+
+document.body.appendChild(
+  script
+);
+
+</script>
+
+</body>
+</html>

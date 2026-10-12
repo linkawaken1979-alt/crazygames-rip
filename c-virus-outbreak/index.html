@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+```
+<title>C-Virus Game: Outbreak</title>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+    }
+
+    #gameContainer {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    #unity-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #000;
+    }
+
+    #loading {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #000;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: Arial, sans-serif;
+    }
+
+    #loading h1 {
+        margin: 0 0 20px;
+        font-size: 28px;
+    }
+
+    #progress {
+        width: 300px;
+        max-width: 80%;
+        height: 8px;
+        background: #333;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+
+    #bar {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+        transition: width .15s;
+    }
+
+    #status {
+        margin-top: 12px;
+        font-size: 14px;
+        color: #aaa;
+    }
+</style>
+```
+
+</head>
+
+<body>
+
+<div id="gameContainer">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+
+<div id="loading">
+    <h1>C-Virus Game: Outbreak</h1>
+
+```
+<div id="progress">
+    <div id="bar"></div>
+</div>
+
+<div id="status">Loading...</div>
+```
+
+</div>
+
+<!-- =========================================================
+     CRAZYGAMES SDK
+     ========================================================= -->
+
+<script src="crazygames-sdk-v3.js"></script>
+
+<!-- =========================================================
+     CRAZYGAMES SHIM
+     ========================================================= -->
+
+<script>
+
+Object.defineProperty(document, 'URL', {
+    get: () =>
+        'https://www.crazygames.com/game/space-waves',
+    configurable: true
+});
+
+Object.defineProperty(document, 'documentURI', {
+    get: () =>
+        'https://www.crazygames.com/game/space-waves',
+    configurable: true
+});
+
+
+var msgQueue = [];
+var gameInstance = null;
+
+
+function sendToUnity(obj, method, param) {
+
+    if (
+        gameInstance &&
+        gameInstance.SendMessage
+    ) {
+
+        try {
+
+            gameInstance.SendMessage(
+                obj,
+                method,
+                param
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "Unity SendMessage failed:",
+                obj,
+                method,
+                param,
+                e
+            );
+
+        }
+
+    } else {
+
+        msgQueue.push([
+            obj,
+            method,
+            param
+        ]);
+
+    }
+
+}
+
+
+window.unityInstance = {
+    SendMessage: sendToUnity
+};
+
+
+var sdk = {
+
+    init: function(cfg) {
+
+        console.log(
+            "[CrazyGames Shim] init",
+            cfg
+        );
+
+        if (
+            cfg &&
+            cfg.crazySDKObjectName
+        ) {
+
+            sendToUnity(
+                cfg.crazySDKObjectName,
+                'OnSDKInit'
+            );
+
+        }
+
+        return true;
+    },
+
+
+    gameplayStart: function() {
+
+        console.log(
+            "[CrazyGames Shim] gameplayStart"
+        );
+
+        return true;
+    },
+
+
+    gameplayStop: function() {
+
+        console.log(
+            "[CrazyGames Shim] gameplayStop"
+        );
+
+        return true;
+    },
+
+
+    happytime: function() {
+
+        console.log(
+            "[CrazyGames Shim] happytime"
+        );
+
+        return true;
+    },
+
+
+    requestAd: function() {
+
+        console.log(
+            "[CrazyGames Shim] requestAd"
+        );
+
+        setTimeout(function() {
+
+            sendToUnity(
+                'CrazyGames',
+                'OnAdCompleted'
+            );
+
+            sendToUnity(
+                'CrazyGames',
+                'OnAdFinished',
+                'true'
+            );
+
+        }, 50);
+
+        return true;
+    },
+
+
+    requestBanners: function() {
+
+        console.log(
+            "[CrazyGames Shim] requestBanners"
+        );
+
+        return true;
+    },
+
+
+    requestInviteUrl: function() {
+
+        console.log(
+            "[CrazyGames Shim] requestInviteUrl"
+        );
+
+        return true;
+    },
+
+
+    screenshotReceived: function() {
+
+        console.log(
+            "[CrazyGames Shim] screenshotReceived"
+        );
+
+        return true;
+    }
+
+};
+
+
+window.Crazygames = sdk;
+window.CrazyGames = sdk;
+
+
+document
+    .getElementById('unity-canvas')
+    .addEventListener(
+        'webglcontextlost',
+        function(e) {
+
+            e.preventDefault();
+
+        }
+    );
+
+
+console.log(
+    "[CrazyGames Shim] Loaded"
+);
+
+</script>
+
+<!-- =========================================================
+     DATA MERGE
+     ========================================================= -->
+
+<script>
+
+const DATA_PARTS = [
+
+    "Build/CG.data.unityweb.part001",
+    "Build/CG.data.unityweb.part002",
+    "Build/CG.data.unityweb.part003",
+    "Build/CG.data.unityweb.part004"
+
+];
+
+
+var reconstructedDataUrl = null;
+
+
+async function mergeDataParts() {
+
+    const parts = [];
+
+    let totalSize = 0;
+
+
+    for (
+        let i = 0;
+        i < DATA_PARTS.length;
+        i++
+    ) {
+
+        const filename =
+            DATA_PARTS[i];
+
+
+        status.textContent =
+            "Loading DATA part " +
+            (i + 1) +
+            " / " +
+            DATA_PARTS.length +
+            "...";
+
+
+        console.log(
+            "[DATA] Loading:",
+            filename
+        );
+
+
+        const response =
+            await fetch(
+                filename,
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Failed to load " +
+                filename +
+                " (HTTP " +
+                response.status +
+                ")"
+            );
+
+        }
+
+
+        const data =
+            await response.arrayBuffer();
+
+
+        /*
+         * Reject the fake HTML error pages that
+         * the server can return with HTTP 200.
+         */
+
+        if (
+            data.byteLength === 8795 ||
+            data.byteLength === 23031 ||
+            data.byteLength === 0
+        ) {
+
+            throw new Error(
+                "Invalid DATA part: " +
+                filename +
+                " (" +
+                data.byteLength +
+                " bytes)"
+            );
+
+        }
+
+
+        parts.push(data);
+
+        totalSize +=
+            data.byteLength;
+
+
+        console.log(
+            "[DATA] Loaded:",
+            filename,
+            data.byteLength,
+            "bytes"
+        );
+
+
+        setProgress(
+            (i + 1) /
+            DATA_PARTS.length *
+            35
+        );
+
+    }
+
+
+    console.log(
+        "[DATA] Combining",
+        parts.length,
+        "parts..."
+    );
+
+
+    console.log(
+        "[DATA] Total DATA size:",
+        totalSize,
+        "bytes"
+    );
+
+
+    status.textContent =
+        "Combining DATA...";
+
+
+    const combined =
+        new Blob(
+            parts,
+            {
+                type:
+                    "application/octet-stream"
+            }
+        );
+
+
+    reconstructedDataUrl =
+        URL.createObjectURL(
+            combined
+        );
+
+
+    console.log(
+        "[DATA] Reconstructed DATA:",
+        reconstructedDataUrl
+    );
+
+
+    return reconstructedDataUrl;
+
+}
+
+</script>
+
+<!-- =========================================================
+     XHR DATA REDIRECT
+     ========================================================= -->
+
+<script>
+
+(function installDataRedirect() {
+
+    const originalOpen =
+        XMLHttpRequest.prototype.open;
+
+
+    XMLHttpRequest.prototype.open =
+        function(
+            method,
+            url,
+            async,
+            user,
+            password
+        ) {
+
+            let finalUrl =
+                String(url);
+
+
+            /*
+             * Only redirect the original
+             * Unity DATA request.
+             *
+             * Everything else remains untouched.
+             */
+
+            if (
+                reconstructedDataUrl &&
+                finalUrl.indexOf(
+                    "Build/CG.data.unityweb"
+                ) !== -1
+            ) {
+
+                console.log(
+                    "[DATA] XHR redirected:",
+                    finalUrl,
+                    "-> reconstructed DATA"
+                );
+
+
+                finalUrl =
+                    reconstructedDataUrl;
+
+            }
+
+
+            /*
+             * Preserve UnityLoader's original
+             * synchronous/asynchronous setting.
+             */
+
+            return originalOpen.call(
+                this,
+                method,
+                finalUrl,
+                async,
+                user,
+                password
+            );
+
+        };
+
+})();
+
+</script>
+
+<!-- =========================================================
+     UNITY LOADER
+     ========================================================= -->
+
+<script>
+
+var bar =
+    document.getElementById("bar");
+
+var status =
+    document.getElementById("status");
+
+var loading =
+    document.getElementById("loading");
+
+
+function setProgress(value) {
+
+    value = Math.max(
+        0,
+        Math.min(
+            1,
+            value
+        )
+    );
+
+
+    bar.style.width =
+        (value * 100) + "%";
+
+}
+
+
+function hideLoading() {
+
+    setProgress(1);
+
+    status.textContent =
+        "Starting game...";
+
+
+    setTimeout(function() {
+
+        loading.style.display =
+            "none";
+
+    }, 500);
+
+}
+
+
+async function startGame() {
+
+    try {
+
+        /*
+         * First reconstruct CG.data.unityweb.
+         */
+
+        await mergeDataParts();
+
+
+        /*
+         * Now load the original UnityLoader.
+         */
+
+        status.textContent =
+            "Loading UnityLoader...";
+
+
+        var unityLoader =
+            document.createElement(
+                "script"
+            );
+
+
+        unityLoader.src =
+            "Build/UnityLoader-v3.js";
+
+
+        unityLoader.onload =
+            function() {
+
+                console.log(
+                    "[Unity] UnityLoader loaded"
+                );
+
+
+                status.textContent =
+                    "Initializing Unity...";
+
+
+                try {
+
+                    if (
+                        typeof UnityLoader ===
+                        "undefined"
+                    ) {
+
+                        throw new Error(
+                            "UnityLoader is undefined"
+                        );
+
+                    }
+
+
+                    gameInstance =
+                        UnityLoader.instantiate(
+                            "gameContainer",
+                            "Build/CG.json",
+                            {
+
+                                onProgress:
+                                    function(
+                                        instance,
+                                        progress
+                                    ) {
+
+                                        if (
+                                            instance &&
+                                            !gameInstance
+                                        ) {
+
+                                            gameInstance =
+                                                instance;
+
+                                        }
+
+
+                                        /*
+                                         * Reserve the
+                                         * first 35% for
+                                         * DATA merging.
+                                         */
+
+                                        var finalProgress =
+                                            0.35 +
+                                            progress * 0.65;
+
+
+                                        setProgress(
+                                            finalProgress
+                                        );
+
+
+                                        status.textContent =
+                                            "Loading... " +
+                                            Math.round(
+                                                progress * 100
+                                            ) +
+                                            "%";
+
+
+                                        /*
+                                         * Flush queued
+                                         * Unity messages.
+                                         */
+
+                                        if (
+                                            gameInstance &&
+                                            gameInstance.SendMessage &&
+                                            msgQueue.length
+                                        ) {
+
+                                            while (
+                                                msgQueue.length
+                                            ) {
+
+                                                var msg =
+                                                    msgQueue.shift();
+
+
+                                                try {
+
+                                                    gameInstance
+                                                        .SendMessage(
+                                                            msg[0],
+                                                            msg[1],
+                                                            msg[2]
+                                                        );
+
+                                                } catch (e) {
+
+                                                    console.warn(
+                                                        "[CrazyGames Shim] Queued message failed",
+                                                        e
+                                                    );
+
+                                                }
+
+                                            }
+
+                                        }
+
+
+                                        if (
+                                            progress >= 1
+                                        ) {
+
+                                            hideLoading();
+
+                                        }
+
+                                    }
+
+                            }
+                        );
+
+
+                    if (gameInstance) {
+
+                        window.unityInstance =
+                            gameInstance;
+
+                    }
+
+
+                } catch (error) {
+
+                    console.error(
+                        "[Unity] Failed to start:",
+                        error
+                    );
+
+
+                    status.textContent =
+                        "Failed to start Unity.";
+
+                    status.style.color =
+                        "#ff4444";
+
+                }
+
+            };
+
+
+        unityLoader.onerror =
+            function() {
+
+                console.error(
+                    "[Unity] Failed to load UnityLoader-v3.js"
+                );
+
+
+                status.textContent =
+                    "Failed to load UnityLoader-v3.js";
+
+                status.style.color =
+                    "#ff4444";
+
+            };
+
+
+        document.body.appendChild(
+            unityLoader
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "[DATA] Merge failed:",
+            error
+        );
+
+
+        status.textContent =
+            "Failed to load game DATA.";
+
+        status.style.color =
+            "#ff4444";
+
+        console.error(
+            error
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   START
+========================================================= */
+
+startGame();
+
+</script>
+
+</body>
+</html>

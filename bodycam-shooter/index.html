@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+
+<html lang="en-us">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no, minimum-scale=1, maximum-scale=1, user-scalable=no">
+
+<title>Bodycam Shooter</title>
+
+<link rel="stylesheet" href="style.css">
+
+<style>
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    #unity-container {
+        width: 100%;
+        height: 100%;
+    }
+
+    #unity-canvas {
+        width: 100%;
+        height: 100%;
+        background: #000;
+    }
+
+    #loading-cover {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: url("images/background.jpg") center center / cover no-repeat;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #unity-loading-bar {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 320px;
+        max-width: 80%;
+    }
+
+    #unity-logo {
+        width: 100%;
+        margin-bottom: 20px;
+        background: url("images/logo.png") center center / contain no-repeat;
+        height: 100px;
+    }
+
+    #unity-progress-bar-empty {
+        width: 100%;
+        height: 8px;
+        background: rgba(255,255,255,.2);
+    }
+
+    #unity-progress-bar-full {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+    }
+</style>
+
+<script>
+    /* =====================================================
+       Legacy Yandex compatibility values
+       The game still references these compiled functions.
+       ===================================================== */
+
+    var flasgsData = "{}";
+
+    var allGamesData = "[]";
+
+    var environmentData = JSON.stringify({
+        language: "en",
+        domain: "",
+        deviceType: "desktop",
+        isMobile: false,
+        isDesktop: true,
+        isTablet: false,
+        isTV: false,
+        appID: "",
+        browserLang: navigator.language || "en",
+        payload: "",
+        platform: navigator.platform || "",
+        browser: "Chrome"
+    });
+
+    var playerData = "{}";
+
+    var cloudSaves = "{}";
+
+    var reviewData = "{}";
+</script>
+
+</head>
+
+<body class="dark">
+
+<div id="loading-cover">
+
+    <div id="unity-loading-bar">
+
+        <div id="unity-logo"></div>
+
+        <div id="unity-progress-bar-empty">
+            <div id="unity-progress-bar-full"></div>
+        </div>
+
+    </div>
+
+</div>
+
+<div id="unity-container" class="unity-desktop">
+
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+
+</div>
+
+
+<script>
+
+    /* =====================================================
+       Unity / Bodycam configuration
+       ===================================================== */
+
+    const buildUrl = "Build";
+
+    const loaderUrl =
+        buildUrl + "/Bodycam.loader.js";
+
+
+    const config = {
+
+        dataUrl:
+            buildUrl + "/Bodycam.data.br",
+
+        frameworkUrl:
+            buildUrl + "/Bodycam.framework.js.br",
+
+        codeUrl:
+            buildUrl + "/Bodycam.wasm.br",
+
+        streamingAssetsUrl:
+            "StreamingAssets",
+
+        companyName:
+            "BornisGameLab",
+
+        productName:
+            "BodycamShooter",
+
+        productVersion:
+            "1.5"
+    };
+
+
+    /* =====================================================
+       Split loader
+       ===================================================== */
+
+    const splitFiles = {
+
+        "Bodycam.data.br": 2,
+
+        "Bodycam.wasm.br": 3
+
+    };
+
+
+    const originalFetch =
+        window.fetch.bind(window);
+
+
+    const splitCache = {};
+
+
+    async function loadSplitFile(name, count) {
+
+        if (splitCache[name]) {
+
+            return splitCache[name];
+
+        }
+
+
+        console.log(
+            "[Bodycam Split] Loading " +
+            name +
+            " (" +
+            count +
+            " parts)"
+        );
+
+
+        const parts = [];
+
+        let totalSize = 0;
+
+
+        for (let i = 0; i < count; i++) {
+
+            const partName =
+                name +
+                ".part" +
+                String(i).padStart(3, "0");
+
+
+            const url =
+                buildUrl +
+                "/" +
+                partName;
+
+
+            console.log(
+                "[Bodycam Split] Fetching " +
+                partName
+            );
+
+
+            const response =
+                await originalFetch(url);
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "[Bodycam Split] Failed to load " +
+                    partName +
+                    " HTTP " +
+                    response.status
+                );
+
+            }
+
+
+            const data =
+                new Uint8Array(
+                    await response.arrayBuffer()
+                );
+
+
+            parts.push(data);
+
+            totalSize += data.length;
+
+        }
+
+
+        const combined =
+            new Uint8Array(totalSize);
+
+
+        let offset = 0;
+
+
+        for (const part of parts) {
+
+            combined.set(
+                part,
+                offset
+            );
+
+            offset += part.length;
+
+        }
+
+
+        console.log(
+            "[Bodycam Split] Reassembled " +
+            name +
+            " (" +
+            Math.round(
+                totalSize / 1048576 * 100
+            ) / 100 +
+            " MB)"
+        );
+
+
+        splitCache[name] =
+            combined;
+
+
+        return combined;
+
+    }
+
+
+    window.fetch = async function(input, init) {
+
+        let url =
+            typeof input === "string"
+                ? input
+                : input.url;
+
+
+        const cleanUrl =
+            url.split("?")[0];
+
+
+        const fileName =
+            cleanUrl.substring(
+                cleanUrl.lastIndexOf("/") + 1
+            );
+
+
+        if (splitFiles[fileName]) {
+
+            const data =
+                await loadSplitFile(
+                    fileName,
+                    splitFiles[fileName]
+                );
+
+
+            return new Response(
+                data,
+                {
+                    status: 200,
+
+                    headers: {
+                        "Content-Type":
+                            "application/octet-stream",
+
+                        "Content-Encoding":
+                            "br"
+                    }
+                }
+            );
+
+        }
+
+
+        return originalFetch(
+            input,
+            init
+        );
+
+    };
+
+
+    /* =====================================================
+       CrazyGames compatibility shim
+       ===================================================== */
+
+    Object.defineProperty(
+        document,
+        "URL",
+        {
+            get: function() {
+                return "https://www.crazygames.com/game/space-waves";
+            },
+            configurable: true
+        }
+    );
+
+
+    Object.defineProperty(
+        document,
+        "documentURI",
+        {
+            get: function() {
+                return "https://www.crazygames.com/game/space-waves";
+            },
+            configurable: true
+        }
+    );
+
+
+    var msgQueue = [];
+
+    var gameInstance = null;
+
+
+    function sendToUnity(
+        objectName,
+        methodName,
+        parameter
+    ) {
+
+        if (gameInstance) {
+
+            try {
+
+                gameInstance.SendMessage(
+                    objectName,
+                    methodName,
+                    parameter
+                );
+
+            } catch (e) {
+
+                console.warn(
+                    "[Bodycam] SendMessage failed:",
+                    e
+                );
+
+            }
+
+        } else {
+
+            msgQueue.push([
+                objectName,
+                methodName,
+                parameter
+            ]);
+
+        }
+
+    }
+
+
+    window.unityInstance = {
+
+        SendMessage:
+            sendToUnity
+
+    };
+
+
+    /* -----------------------------------------------------
+       CrazyGames object
+       ----------------------------------------------------- */
+
+    window.CrazyGames =
+        window.CrazyGames || {};
+
+
+    window.CrazyGames.init =
+        function(cfg) {
+
+            console.log(
+                "[Bodycam] CrazyGames.init"
+            );
+
+
+            if (
+                cfg &&
+                cfg.crazySDKObjectName
+            ) {
+
+                sendToUnity(
+                    cfg.crazySDKObjectName,
+                    "OnSDKInit"
+                );
+
+            }
+
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.gameplayStart =
+        function() {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.gameplayStop =
+        function() {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.happytime =
+        function() {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.requestAd =
+        function() {
+
+            console.log(
+                "[Bodycam] CrazyGames ad skipped"
+            );
+
+
+            setTimeout(
+                function() {
+
+                    sendToUnity(
+                        "CrazyGames",
+                        "OnAdCompleted"
+                    );
+
+
+                    sendToUnity(
+                        "CrazyGames",
+                        "OnAdFinished",
+                        "true"
+                    );
+
+                },
+                50
+            );
+
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.requestBanners =
+        function() {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.requestInviteUrl =
+        function() {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.screenshotReceived =
+        function() {
+
+            return true;
+
+        };
+
+
+    /* -----------------------------------------------------
+       Modern CrazyGames SDK
+       ----------------------------------------------------- */
+
+    window.CrazyGames.SDK =
+        window.CrazyGames.SDK || {};
+
+
+    window.CrazyGames.SDK.game =
+        window.CrazyGames.SDK.game || {};
+
+
+    window.CrazyGames.SDK.game.addJoinRoomListener =
+        function(callback) {
+
+            console.log(
+                "[Bodycam] addJoinRoomListener disabled"
+            );
+
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.SDK.game.removeJoinRoomListener =
+        function(callback) {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.SDK.game.inviteFriends =
+        function() {
+
+            return true;
+
+        };
+
+
+    window.CrazyGames.SDK.game.getInviteParam =
+        function() {
+
+            return null;
+
+        };
+
+
+    window.CrazyGames.SDK.game.getSystemInfo =
+        function() {
+
+            return {};
+
+        };
+
+
+    console.log(
+        "[Bodycam] CrazyGames shim:",
+        typeof
+            window.CrazyGames
+                .SDK
+                .game
+                .addJoinRoomListener
+    );
+
+
+    /* =====================================================
+       WebGL context protection
+       ===================================================== */
+
+    document
+        .getElementById("unity-canvas")
+        .addEventListener(
+            "webglcontextlost",
+            function(e) {
+
+                e.preventDefault();
+
+            }
+        );
+
+
+    /* =====================================================
+       Unity loader
+       ===================================================== */
+
+    const script =
+        document.createElement("script");
+
+
+    script.src =
+        loaderUrl;
+
+
+    script.onload =
+        function() {
+
+            createUnityInstance(
+                document.getElementById(
+                    "unity-canvas"
+                ),
+
+                config,
+
+                function(progress) {
+
+                    document
+                        .getElementById(
+                            "unity-progress-bar-full"
+                        )
+                        .style.width =
+                            (
+                                100 * progress
+                            ) +
+                            "%";
+
+                }
+
+            ).then(
+                function(instance) {
+
+                    gameInstance =
+                        instance;
+
+
+                    window.unityInstance =
+                        instance;
+
+
+                    /* Flush queued SDK messages */
+
+                    for (
+                        const msg
+                        of msgQueue
+                    ) {
+
+                        try {
+
+                            instance.SendMessage(
+                                msg[0],
+                                msg[1],
+                                msg[2]
+                            );
+
+                        } catch (e) {
+
+                            console.warn(
+                                "[Bodycam] Queued message failed:",
+                                e
+                            );
+
+                        }
+
+                    }
+
+
+                    msgQueue.length = 0;
+
+
+                    document
+                        .getElementById(
+                            "loading-cover"
+                        )
+                        .style.display =
+                            "none";
+
+
+                    console.log(
+                        "[Bodycam] Unity started"
+                    );
+
+                }
+
+            ).catch(
+                function(error) {
+
+                    console.error(
+                        "[Bodycam] Unity error:",
+                        error
+                    );
+
+                }
+            );
+
+        };
+
+
+    script.onerror =
+        function() {
+
+            console.error(
+                "[Bodycam] Failed to load Bodycam.loader.js"
+            );
+
+        };
+
+
+    document.body.appendChild(
+        script
+    );
+
+
+    /* =====================================================
+       Focus / visibility handling
+       ===================================================== */
+
+    document.addEventListener(
+        "visibilitychange",
+        function() {
+
+            if (
+                document.hidden
+            ) {
+
+                return;
+
+            }
+
+        }
+    );
+
+
+    window.addEventListener(
+        "blur",
+        function() {
+
+            document.body.classList.add(
+                "blur"
+            );
+
+        }
+    );
+
+
+    window.addEventListener(
+        "focus",
+        function() {
+
+            document.body.classList.remove(
+                "blur"
+            );
+
+        }
+    );
+
+
+    /* =====================================================
+       Pointer lock
+       ===================================================== */
+
+    const canvas =
+        document.getElementById(
+            "unity-canvas"
+        );
+
+
+    canvas.addEventListener(
+        "click",
+        function() {
+
+            if (
+                document.pointerLockElement !==
+                canvas
+            ) {
+
+                try {
+
+                    canvas.requestPointerLock();
+
+                } catch (e) {
+
+                    console.warn(
+                        "[Bodycam] Pointer lock failed:",
+                        e
+                    );
+
+                }
+
+            }
+
+        }
+    );
+
+</script>
+
+</body>
+
+</html>
