@@ -1,0 +1,13 @@
+{
+"companyName": "HGamesArtWorks",
+"productName": "Creepy Granny Scream Scary Horror Game",
+"dataUrl": "Creepy Granny Scream.data.unityweb",
+"asmCodeUrl": "Creepy Granny Scream.asm.code.unityweb",
+"asmMemoryUrl": "Creepy Granny Scream.asm.memory.unityweb",
+"asmFrameworkUrl": "Creepy Granny Scream.asm.framework.unityweb",
+"TOTAL_MEMORY": 268435456,
+"graphicsAPI": ["WebGL 2.0", "WebGL 1.0"],
+"webglContextAttributes": {"preserveDrawingBuffer": false},
+"splashScreenStyle": "Dark",
+"backgroundColor": "#231F20"
+}
