@@ -1,0 +1,97 @@
+body {
+	font-family: "Courier";
+	font-family: 'Autour One';
+	font-size: 22px;
+	overflow: hidden;
+	
+	-webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+#rightContent {
+	background-image: url("images/misc_black_noise.png");
+    background-color: #cccccc;
+	color:lightgrey;
+	position: absolute;
+	right: 0px;
+	height: 100%;
+	width: 350px;
+	top: 0px;
+	transform:scale(1,1);
+	transform-origin:right;
+	overflow: auto;
+	overflow-x: hidden;
+}
+#rightContent::-webkit-scrollbar {
+	width: 12px;
+	background-color: #F5F5F5;
+}
+#rightContent::-webkit-scrollbar-track {
+	-webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+	background-color: #F5F5F5;
+	border-radius: 10px;
+}
+
+#rightContent::-webkit-scrollbar-thumb {
+	border-radius: 10px;
+	background-image: -webkit-gradient(linear,
+									   left bottom,
+									   left top,
+									   color-stop(0.44, #592c0e),
+									   color-stop(0.72, #773b13),
+									   color-stop(0.86, #8c4415));
+}
+
+#leftContent {
+	background-image: url("images/misc_black_noise.png");
+    background-color: #cccccc;
+	color:lightgrey;
+	position: absolute;
+	left: 0px;
+	height: 100%;
+	width: 210px;
+	top: 0px;
+	padding-left:10;
+	padding-right:10;
+}
+
+.building {
+	height: 70px;
+	width:350px;
+	position:relative;
+}
+
+
+.building_icon {
+	position:absolute;
+	left:6px;
+	top:3px;
+	height:64px;
+	width:64px;
+}
+.building_count {
+	position:absolute;
+	font-size: 42px;
+	right: 3px;
+	bottom: 1px;
+	opacity: 0.7;
+}
+.building_title {
+	position:absolute;
+	font-size: 30px;
+	left: 72px;
+	bottom: 1px;
+	color:#ff9400;
+	text-shadow:0px 0px 8px #ffbb5e;
+}
+.building_price {
+	position:absolute;
+	font-size: 16px;
+	left: 78px;
+	top: 9px;
+	color:#085415;
+	text-shadow:0px 0px 8px #32b54a;
+}
