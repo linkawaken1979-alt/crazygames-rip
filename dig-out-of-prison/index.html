@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width,
+                 initial-scale=1.0,
+                 maximum-scale=1.0,
+                 user-scalable=no"
+    >
+
+    <title>Dig Out Of Prison</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #gameContainer {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        #unity-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #000;
+        }
+
+        #loadingScreen {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+
+            background: radial-gradient(
+                circle at center,
+                #202020 0%,
+                #0b0b0b 55%,
+                #000 100%
+            );
+
+            font-family: Arial, Helvetica, sans-serif;
+
+            opacity: 1;
+            visibility: visible;
+
+            transition:
+                opacity 0.6s ease,
+                visibility 0.6s ease;
+        }
+
+        #loadingScreen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #gameTitle {
+            margin-bottom: 35px;
+
+            color: #fff;
+
+            font-size: clamp(28px, 5vw, 56px);
+
+            font-weight: 800;
+            letter-spacing: 2px;
+
+            text-align: center;
+
+            text-shadow: 0 3px 12px rgba(0, 0, 0, 0.8);
+        }
+
+        #spinner {
+            width: 46px;
+            height: 46px;
+
+            margin-bottom: 25px;
+
+            border: 4px solid rgba(255, 255, 255, 0.15);
+            border-top-color: #fff;
+
+            border-radius: 50%;
+
+            animation: spin 0.9s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #loadingText {
+            color: #fff;
+
+            font-size: 16px;
+            font-weight: 600;
+
+            margin-bottom: 14px;
+
+            text-align: center;
+        }
+
+        #progressContainer {
+            width: min(420px, 75vw);
+            height: 10px;
+
+            background: rgba(255, 255, 255, 0.12);
+
+            border-radius: 20px;
+
+            overflow: hidden;
+
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 100%;
+
+            background: #fff;
+
+            border-radius: 20px;
+
+            transition: width 0.15s ease;
+        }
+
+        #progressPercent {
+            margin-top: 12px;
+
+            color: rgba(255, 255, 255, 0.65);
+
+            font-size: 14px;
+        }
+
+        #loadingFooter {
+            position: absolute;
+            bottom: 25px;
+
+            color: rgba(255, 255, 255, 0.35);
+
+            font-size: 12px;
+
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="gameContainer">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+</div>
+
+<div id="loadingScreen">
+
+    <div id="gameTitle">
+        DIG OUT OF PRISON
+    </div>
+
+    <div id="spinner"></div>
+
+    <div id="loadingText">
+        Preparing game files...
+    </div>
+
+    <div id="progressContainer">
+        <div id="progressBar"></div>
+    </div>
+
+    <div id="progressPercent">
+        0%
+    </div>
+
+    <div id="loadingFooter">
+        Please wait while the game loads
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CRAZYGAMES SHIM
+     ========================================================= -->
+
+<script>
+
+Object.defineProperty(document, "URL", {
+    get: function () {
+        return "https://www.crazygames.com/game/space-waves";
+    },
+    configurable: true
+});
+
+Object.defineProperty(document, "documentURI", {
+    get: function () {
+        return "https://www.crazygames.com/game/space-waves";
+    },
+    configurable: true
+});
+
+
+var msgQueue = [];
+
+var gameInstance = null;
+
+
+function sendToUnity(obj, method, param) {
+
+    if (gameInstance) {
+
+        try {
+
+            gameInstance.SendMessage(
+                obj,
+                method,
+                param
+            );
+
+        } catch (e) {
+
+            console.warn(
+                "[CrazyGames Shim] SendMessage failed:",
+                e
+            );
+        }
+
+    } else {
+
+        msgQueue.push([
+            obj,
+            method,
+            param
+        ]);
+    }
+}
+
+
+window.unityInstance = {
+    SendMessage: sendToUnity
+};
+
+
+/* =========================================================
+   AD API
+   ========================================================= */
+
+var ad = {
+
+    addAdblockPopupListener: function (callback) {
+
+        console.log(
+            "[CrazyGames Shim] ad.addAdblockPopupListener"
+        );
+
+        if (typeof callback === "function") {
+
+            setTimeout(function () {
+
+                try {
+                    callback(false);
+                } catch (e) {
+                    console.warn(
+                        "[CrazyGames Shim] Callback failed:",
+                        e
+                    );
+                }
+
+            }, 0);
+        }
+
+        return true;
+    },
+
+    removeAdblockPopupListener: function () {
+        return true;
+    },
+
+    requestAd: function () {
+
+        console.log(
+            "[CrazyGames Shim] ad.requestAd"
+        );
+
+        setTimeout(function () {
+
+            sendToUnity(
+                "CrazyGames",
+                "OnAdCompleted"
+            );
+
+            sendToUnity(
+                "CrazyGames",
+                "OnAdFinished",
+                "true"
+            );
+
+        }, 50);
+
+        return true;
+    }
+};
+
+
+/* =========================================================
+   BANNER API
+   ========================================================= */
+
+var banner = {
+
+    requestBanner: function () {
+        return true;
+    },
+
+    hideBanner: function () {
+        return true;
+    },
+
+    clearBanner: function () {
+        return true;
+    }
+};
+
+
+/* =========================================================
+   SDK
+   ========================================================= */
+
+var sdk = {
+
+    init: function (cfg) {
+
+        console.log(
+            "[CrazyGames Shim] SDK.init"
+        );
+
+        if (
+            cfg &&
+            cfg.crazySDKObjectName
+        ) {
+
+            sendToUnity(
+                cfg.crazySDKObjectName,
+                "OnSDKInit"
+            );
+        }
+
+        return true;
+    },
+
+    gameplayStart: function () {
+        return true;
+    },
+
+    gameplayStop: function () {
+        return true;
+    },
+
+    happytime: function () {
+        return true;
+    },
+
+    requestAd: function () {
+        return ad.requestAd();
+    },
+
+    requestBanners: function () {
+        return true;
+    },
+
+    requestInviteUrl: function () {
+        return true;
+    },
+
+    screenshotReceived: function () {
+        return true;
+    },
+
+    ad: ad,
+
+    banner: banner
+};
+
+
+window.CrazyGames = {
+    SDK: sdk
+};
+
+window.Crazygames =
+    window.CrazyGames;
+
+</script>
+
+
+<!-- =========================================================
+     LOADING / SPLIT FILE SYSTEM
+     ========================================================= -->
+
+<script>
+
+var canvas =
+    document.getElementById(
+        "unity-canvas"
+    );
+
+var loadingScreen =
+    document.getElementById(
+        "loadingScreen"
+    );
+
+var loadingText =
+    document.getElementById(
+        "loadingText"
+    );
+
+var progressBar =
+    document.getElementById(
+        "progressBar"
+    );
+
+var progressPercent =
+    document.getElementById(
+        "progressPercent"
+    );
+
+
+function setProgress(percent, text) {
+
+    percent =
+        Math.max(
+            0,
+            Math.min(
+                100,
+                Math.round(percent)
+            )
+        );
+
+    progressBar.style.width =
+        percent + "%";
+
+    progressPercent.textContent =
+        percent + "%";
+
+    if (text) {
+        loadingText.textContent =
+            text;
+    }
+}
+
+
+/*
+ * Download one part.
+ */
+
+async function downloadPart(url) {
+
+    console.log(
+        "[Split Loader] Downloading:",
+        url
+    );
+
+    var response =
+        await fetch(
+            url,
+            {
+                cache: "default"
+            }
+        );
+
+    if (!response.ok) {
+
+        throw new Error(
+            "HTTP " +
+            response.status +
+            " while downloading " +
+            url
+        );
+    }
+
+    return await response.arrayBuffer();
+}
+
+
+/*
+ * Combine multiple ArrayBuffers into
+ * one Blob.
+ */
+
+function combineParts(parts, mimeType) {
+
+    console.log(
+        "[Split Loader] Combining",
+        parts.length,
+        "parts"
+    );
+
+    return new Blob(
+        parts,
+        {
+            type: mimeType
+        }
+    );
+}
+
+
+/*
+ * Download and combine WASM.
+ */
+
+async function loadWasm() {
+
+    setProgress(
+        5,
+        "Downloading game engine..."
+    );
+
+    var parts =
+        await Promise.all([
+
+            downloadPart(
+                "Build/8f2628f842ab3743cb74934c84aa0c5c.wasm.part001"
+            ),
+
+            downloadPart(
+                "Build/8f2628f842ab3743cb74934c84aa0c5c.wasm.part002"
+            )
+
+        ]);
+
+    setProgress(
+        30,
+        "Combining game engine..."
+    );
+
+    var blob =
+        combineParts(
+            parts,
+            "application/wasm"
+        );
+
+    var url =
+        URL.createObjectURL(blob);
+
+    console.log(
+        "[Split Loader] WASM ready:",
+        blob.size,
+        "bytes"
+    );
+
+    return url;
+}
+
+
+/*
+ * Download and combine DATA.
+ */
+
+async function loadData() {
+
+    setProgress(
+        35,
+        "Downloading game data..."
+    );
+
+    var parts =
+        await Promise.all([
+
+            downloadPart(
+                "Build/b6a11a5769b57ef475b5d3f311a674fc.data.part001"
+            ),
+
+            downloadPart(
+                "Build/b6a11a5769b57ef475b5d3f311a674fc.data.part002"
+            )
+
+        ]);
+
+    setProgress(
+        65,
+        "Combining game data..."
+    );
+
+    var blob =
+        combineParts(
+            parts,
+            "application/octet-stream"
+        );
+
+    var url =
+        URL.createObjectURL(blob);
+
+    console.log(
+        "[Split Loader] DATA ready:",
+        blob.size,
+        "bytes"
+    );
+
+    return url;
+}
+
+
+/*
+ * Load both files before Unity starts.
+ */
+
+async function prepareSplitFiles() {
+
+    try {
+
+        /*
+         * Download WASM and DATA simultaneously.
+         */
+
+        var results =
+            await Promise.all([
+                loadWasm(),
+                loadData()
+            ]);
+
+        setProgress(
+            75,
+            "Game files ready..."
+        );
+
+        return {
+            wasmUrl: results[0],
+            dataUrl: results[1]
+        };
+
+    } catch (error) {
+
+        console.error(
+            "[Split Loader] Failed:",
+            error
+        );
+
+        setProgress(
+            100,
+            "Failed to load game files."
+        );
+
+        progressPercent.textContent =
+            "ERROR";
+
+        throw error;
+    }
+}
+
+
+/* =========================================================
+   START GAME
+   ========================================================= */
+
+async function startGame() {
+
+    try {
+
+        /*
+         * First reconstruct the large files.
+         */
+
+        var files =
+            await prepareSplitFiles();
+
+
+        /*
+         * Load Unity's loader only after the
+         * split files are ready.
+         */
+
+        setProgress(
+            80,
+            "Starting Unity..."
+        );
+
+
+        var script =
+            document.createElement(
+                "script"
+            );
+
+        script.src =
+            "Build/6529111a7bc210fd4b0e5e9b7b7de456.loader.js";
+
+
+        script.onload =
+            function () {
+
+                console.log(
+                    "[Unity] Loader loaded"
+                );
+
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * dataUrl and codeUrl now point
+                 * to browser-generated Blob URLs.
+                 */
+
+                var config = {
+
+                    dataUrl:
+                        files.dataUrl,
+
+                    frameworkUrl:
+                        "Build/74316103438b469864841eb099023290.framework.js",
+
+                    codeUrl:
+                        files.wasmUrl,
+
+                    streamingAssetsUrl:
+                        "StreamingAssets",
+
+                    companyName:
+                        "Dig Out Of Prison",
+
+                    productName:
+                        "Dig Out Of Prison",
+
+                    productVersion:
+                        "1.0"
+                };
+
+
+                console.log(
+                    "[Unity] Starting Dig Out Of Prison"
+                );
+
+
+                createUnityInstance(
+
+                    canvas,
+
+                    config,
+
+                    function (progress) {
+
+                        /*
+                         * Unity reports 0-1.
+                         *
+                         * Reserve the first 80%
+                         * for downloading/combining
+                         * and use the remaining
+                         * 20% for Unity initialization.
+                         */
+
+                        var percent =
+                            80 +
+                            Math.round(
+                                progress * 20
+                            );
+
+                        setProgress(
+                            percent,
+                            percent < 100
+                                ? "Starting game..."
+                                : "Game ready!"
+                        );
+                    }
+
+                ).then(
+
+                    function (instance) {
+
+                        console.log(
+                            "[Unity] Game loaded"
+                        );
+
+                        gameInstance =
+                            instance;
+
+                        window.unityInstance =
+                            instance;
+
+
+                        /*
+                         * Flush queued CrazyGames
+                         * messages.
+                         */
+
+                        for (
+                            var i = 0;
+                            i < msgQueue.length;
+                            i++
+                        ) {
+
+                            var msg =
+                                msgQueue[i];
+
+                            try {
+
+                                instance.SendMessage(
+                                    msg[0],
+                                    msg[1],
+                                    msg[2]
+                                );
+
+                            } catch (e) {
+
+                                console.warn(
+                                    "[CrazyGames Shim] Queued message failed:",
+                                    e
+                                );
+                            }
+                        }
+
+                        msgQueue.length = 0;
+
+
+                        /*
+                         * Finish loading screen.
+                         */
+
+                        setProgress(
+                            100,
+                            "Game ready!"
+                        );
+
+                        setTimeout(
+                            function () {
+
+                                loadingScreen.classList.add(
+                                    "hidden"
+                                );
+
+                            },
+                            400
+                        );
+
+
+                        sdk.gameplayStart();
+                    }
+
+                ).catch(
+
+                    function (error) {
+
+                        console.error(
+                            "[Unity] Failed to load:",
+                            error
+                        );
+
+                        loadingText.textContent =
+                            "Failed to load game.";
+
+                        progressPercent.textContent =
+                            "ERROR";
+                    }
+                );
+            };
+
+
+        script.onerror =
+            function () {
+
+                console.error(
+                    "[Unity] Loader failed"
+                );
+
+                loadingText.textContent =
+                    "Failed to load Unity loader.";
+
+                progressPercent.textContent =
+                    "ERROR";
+            };
+
+
+        document.head.appendChild(
+            script
+        );
+
+    } catch (error) {
+
+        console.error(
+            "[Game] Startup failed:",
+            error
+        );
+
+        loadingText.textContent =
+            "Failed to load game.";
+
+        progressPercent.textContent =
+            "ERROR";
+    }
+}
+
+
+/* =========================================================
+   WEBGL CONTEXT
+   ========================================================= */
+
+canvas.addEventListener(
+    "webglcontextlost",
+    function (event) {
+
+        event.preventDefault();
+
+        console.warn(
+            "[Unity] WebGL context lost"
+        );
+    }
+);
+
+
+/* =========================================================
+   START
+   ========================================================= */
+
+startGame();
+
+</script>
+
+</body>
+</html>
+

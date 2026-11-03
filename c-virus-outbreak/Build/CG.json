@@ -1,0 +1,16 @@
+{
+"companyName": "PoisonGames",
+"productName": "C-Virus Game: Outbreak",
+"productVersion": "1",
+"dataUrl": "CG.data.unityweb",
+"wasmCodeUrl": "CG.wasm.code.unityweb",
+"wasmFrameworkUrl": "CG.wasm.framework.unityweb",
+"graphicsAPI": ["WebGL 2.0","WebGL 1.0"],
+"webglContextAttributes": {"preserveDrawingBuffer": false},
+"backgroundUrl": "CG.jpg",
+"splashScreenStyle": "Dark",
+"backgroundColor": "#FFFFFF",
+"developmentBuild": false,
+"multithreading": false,
+"unityVersion": "2019.1.1f1"
+}

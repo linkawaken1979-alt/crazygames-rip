@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width,
+                   height=device-height,
+                   initial-scale=1.0,
+                   user-scalable=no">
+
+    <title>Creepy Granny Scream: Scary Freddy</title>
+
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        #gameContainer canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #loading {
+            position: absolute;
+            inset: 0;
+            z-index: 10;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+
+            background: #000;
+            color: #fff;
+
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        #loading h1 {
+            margin: 0 20px 15px;
+            font-size: 28px;
+        }
+
+        #loadingText {
+            margin: 0;
+            color: #aaa;
+            font-size: 15px;
+        }
+
+        #progress {
+            width: 320px;
+            max-width: 80%;
+            height: 8px;
+            margin-top: 20px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 100%;
+            background: #fff;
+            transition: width 0.1s linear;
+        }
+
+        #fullscreen {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            z-index: 20;
+
+            padding: 9px 13px;
+            border: 0;
+            border-radius: 6px;
+
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+
+            font-family: Arial, sans-serif;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="gameContainer">
+
+        <div id="loading">
+            <h1>Creepy Granny Scream: Scary Freddy</h1>
+
+            <p id="loadingText">
+                Preparing game...
+            </p>
+
+            <div id="progress">
+                <div id="progressBar"></div>
+            </div>
+        </div>
+
+        <button id="fullscreen">
+            Fullscreen
+        </button>
+
+    </div>
+
+
+    <!-- =========================================================
+     CrazyGames compatibility shim
+     ========================================================= -->
+    <script>
+        (function () {
+
+            try {
+
+                Object.defineProperty(document, "URL", {
+                    get: function () {
+                        return "https://www.crazygames.com/game/space-waves";
+                    },
+                    configurable: true
+                });
+
+                Object.defineProperty(document, "documentURI", {
+                    get: function () {
+                        return "https://www.crazygames.com/game/space-waves";
+                    },
+                    configurable: true
+                });
+
+            } catch (e) {
+                console.warn("Could not override document URL:", e);
+            }
+
+
+            window.msgQueue = [];
+            window.gameInstance = null;
+
+
+            function sendToUnity(obj, method, param) {
+
+                if (
+                    window.gameInstance &&
+                    typeof window.gameInstance.SendMessage === "function"
+                ) {
+
+                    try {
+
+                        window.gameInstance.SendMessage(
+                            obj,
+                            method,
+                            param
+                        );
+
+                    } catch (e) {
+
+                        console.warn(
+                            "Unity SendMessage failed:",
+                            e
+                        );
+
+                    }
+
+                } else {
+
+                    window.msgQueue.push([
+                        obj,
+                        method,
+                        param
+                    ]);
+
+                }
+            }
+
+
+            window.sendToUnity = sendToUnity;
+
+
+            window.unityInstance = {
+                SendMessage: sendToUnity
+            };
+
+
+            var sdk = {
+
+                init: function (cfg) {
+
+                    console.log("CrazyGames SDK: init");
+
+                    if (
+                        cfg &&
+                        cfg.crazySDKObjectName
+                    ) {
+
+                        sendToUnity(
+                            cfg.crazySDKObjectName,
+                            "OnSDKInit"
+                        );
+
+                    }
+
+                    return true;
+                },
+
+
+                gameplayStart: function () {
+                    return true;
+                },
+
+
+                gameplayStop: function () {
+                    return true;
+                },
+
+
+                happytime: function () {
+                    return true;
+                },
+
+
+                requestAd: function () {
+
+                    setTimeout(function () {
+
+                        sendToUnity(
+                            "CrazyGames",
+                            "OnAdCompleted"
+                        );
+
+                        sendToUnity(
+                            "CrazyGames",
+                            "OnAdFinished",
+                            "true"
+                        );
+
+                    }, 50);
+
+                    return true;
+                },
+
+
+                requestBanners: function () {
+                    return true;
+                },
+
+
+                requestInviteUrl: function () {
+                    return true;
+                },
+
+
+                screenshotReceived: function () {
+                    return true;
+                }
+
+            };
+
+
+            window.Crazygames = sdk;
+            window.CrazyGames = sdk;
+
+
+            /*
+             * Install WebGL context handler once
+             * Unity creates the canvas.
+             */
+            var contextTimer = setInterval(function () {
+
+                var canvas =
+                    document.getElementById("unity-canvas") ||
+                    document.querySelector("#gameContainer canvas");
+
+                if (!canvas) {
+                    return;
+                }
+
+                canvas.addEventListener(
+                    "webglcontextlost",
+                    function (e) {
+                        e.preventDefault();
+                        console.warn("WebGL context lost.");
+                    },
+                    false
+                );
+
+                clearInterval(contextTimer);
+
+            }, 100);
+
+        })();
+    </script>
+
+
+    <script src="Build/UnityLoader-v3.js"></script>
+
+
+    <script>
+        (async function () {
+
+            var loading =
+                document.getElementById("loading");
+
+            var loadingText =
+                document.getElementById("loadingText");
+
+            var progressBar =
+                document.getElementById("progressBar");
+
+            var fullscreenButton =
+                document.getElementById("fullscreen");
+
+
+            function setProgress(percent, text) {
+
+                progressBar.style.width =
+                    percent + "%";
+
+                if (text) {
+                    loadingText.textContent = text;
+                }
+            }
+
+
+            /*
+             * Download and combine a known number of parts.
+             *
+             * Your current files have:
+             *
+             * part000
+             * part001
+             *
+             * so we don't request part002.
+             */
+            async function combineParts(
+                filename,
+                partCount,
+                label,
+                startPercent,
+                endPercent
+            ) {
+
+                var buffers = [];
+                var totalSize = 0;
+
+
+                for (var i = 0; i < partCount; i++) {
+
+                    var partName =
+                        filename +
+                        ".part" +
+                        String(i).padStart(3, "0");
+
+
+                    loadingText.textContent =
+                        "Downloading " +
+                        label +
+                        " part " +
+                        (i + 1) +
+                        " of " +
+                        partCount +
+                        "...";
+
+
+                    var response =
+                        await fetch(
+                            "Build/" +
+                            encodeURIComponent(partName),
+                            {
+                                cache: "force-cache"
+                            }
+                        );
+
+
+                    if (!response.ok) {
+
+                        throw new Error(
+                            "Failed to download " +
+                            partName +
+                            " (HTTP " +
+                            response.status +
+                            ")"
+                        );
+
+                    }
+
+
+                    var buffer =
+                        await response.arrayBuffer();
+
+
+                    buffers.push(buffer);
+
+                    totalSize += buffer.byteLength;
+
+
+                    setProgress(
+                        startPercent +
+                        (
+                            ((i + 1) / partCount) *
+                            (endPercent - startPercent)
+                        ),
+                        "Downloaded " +
+                        label +
+                        " part " +
+                        (i + 1) +
+                        " of " +
+                        partCount
+                    );
+                }
+
+
+                loadingText.textContent =
+                    "Combining " + label + "...";
+
+
+                var blob =
+                    new Blob(
+                        buffers,
+                        {
+                            type:
+                                "application/octet-stream"
+                        }
+                    );
+
+
+                var blobURL =
+                    URL.createObjectURL(blob);
+
+
+                console.log(
+                    label +
+                    " combined:",
+                    partCount,
+                    "parts",
+                    totalSize,
+                    "bytes"
+                );
+
+
+                return blobURL;
+            }
+
+
+            try {
+
+                setProgress(
+                    0,
+                    "Preparing game..."
+                );
+
+
+                /*
+                 * Your split CODE file.
+                 *
+                 * You currently have:
+                 * part000
+                 * part001
+                 */
+                var codeURL =
+                    await combineParts(
+                        "Creepy Granny Scream.asm.code.unityweb",
+                        2,
+                        "game code",
+                        0,
+                        40
+                    );
+
+
+                /*
+                 * Your split DATA file.
+                 *
+                 * You currently have:
+                 * part000
+                 * part001
+                 */
+                var dataURL =
+                    await combineParts(
+                        "Creepy Granny Scream.data.unityweb",
+                        2,
+                        "game data",
+                        40,
+                        75
+                    );
+
+
+                setProgress(
+                    80,
+                    "Preparing Unity..."
+                );
+
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * UnityLoader.instantiate() expects
+                 * a URL to a JSON configuration file.
+                 *
+                 * Therefore we create a temporary JSON
+                 * Blob containing the Blob URLs above.
+                 */
+                var config = {
+
+                    companyName:
+                        "HGamesArtWorks",
+
+                    productName:
+                        "Creepy Granny Scream Scary Horror Game",
+
+                    dataUrl:
+                        dataURL,
+
+                    asmCodeUrl:
+                        codeURL,
+
+                    asmMemoryUrl:
+                        new URL(
+                            "Build/Creepy Granny Scream.asm.memory.unityweb",
+                            window.location.href
+                        ).href,
+
+                    asmFrameworkUrl:
+                        new URL(
+                            "Build/Creepy Granny Scream.asm.framework.unityweb",
+                            window.location.href
+                        ).href,
+
+                    TOTAL_MEMORY:
+                        268435456,
+
+                    graphicsAPI: [
+                        "WebGL 2.0",
+                        "WebGL 1.0"
+                    ],
+
+                    webglContextAttributes: {
+                        preserveDrawingBuffer: false
+                    },
+
+                    splashScreenStyle:
+                        "Dark",
+
+                    backgroundColor:
+                        "#231F20"
+                };
+
+
+                /*
+                 * Convert config into an actual JSON URL.
+                 */
+                var configBlob =
+                    new Blob(
+                        [
+                            JSON.stringify(config)
+                        ],
+                        {
+                            type: "application/json"
+                        }
+                    );
+
+
+                var configURL =
+                    URL.createObjectURL(configBlob);
+
+
+                console.log(
+                    "Generated Unity config:",
+                    config
+                );
+
+
+                setProgress(
+                    85,
+                    "Starting Unity..."
+                );
+
+
+                /*
+                 * NOW UnityLoader receives a URL,
+                 * not a JavaScript object.
+                 */
+                window.gameInstance =
+                    UnityLoader.instantiate(
+                        "gameContainer",
+                        configURL,
+                        {
+                            onProgress:
+                                function (game, progress) {
+
+                                    setProgress(
+                                        85 +
+                                        progress * 15,
+                                        "Starting game... " +
+                                        Math.round(
+                                            progress * 100
+                                        ) +
+                                        "%"
+                                    );
+                                }
+                        }
+                    );
+
+
+                /*
+                 * CrazyGames compatibility bridge.
+                 */
+                window.unityInstance = {
+
+                    SendMessage:
+                        function (obj, method, param) {
+
+                            if (
+                                window.gameInstance &&
+                                typeof window.gameInstance.SendMessage ===
+                                "function"
+                            ) {
+
+                                return window.gameInstance.SendMessage(
+                                    obj,
+                                    method,
+                                    param
+                                );
+
+                            }
+
+
+                            window.msgQueue.push([
+                                obj,
+                                method,
+                                param
+                            ]);
+                        }
+                };
+
+
+                /*
+                 * Flush queued CrazyGames messages.
+                 */
+                if (window.msgQueue.length) {
+
+                    var queue =
+                        window.msgQueue.splice(0);
+
+
+                    queue.forEach(function (msg) {
+
+                        try {
+
+                            window.gameInstance.SendMessage(
+                                msg[0],
+                                msg[1],
+                                msg[2]
+                            );
+
+                        } catch (e) {
+
+                            console.warn(
+                                "Queued Unity message failed:",
+                                e
+                            );
+
+                        }
+
+                    });
+                }
+
+
+                setProgress(
+                    100,
+                    "Game loaded!"
+                );
+
+
+                /*
+                 * Hide loading screen after
+                 * Unity creates its canvas.
+                 */
+                var checkCanvas =
+                    setInterval(function () {
+
+                        var canvas =
+                            document.querySelector(
+                                "#gameContainer canvas"
+                            );
+
+                        if (canvas) {
+
+                            loading.style.display =
+                                "none";
+
+                            clearInterval(checkCanvas);
+                        }
+
+                    }, 250);
+
+
+            } catch (error) {
+
+                console.error(
+                    "Unity failed to start:",
+                    error
+                );
+
+                loadingText.textContent =
+                    "Failed to load game: " +
+                    error.message;
+
+                progressBar.style.width =
+                    "0%";
+            }
+
+
+            /*
+             * Fullscreen.
+             */
+            fullscreenButton.addEventListener(
+                "click",
+                function () {
+
+                    var container =
+                        document.getElementById(
+                            "gameContainer"
+                        );
+
+
+                    if (document.fullscreenElement) {
+
+                        document.exitFullscreen();
+
+                        return;
+                    }
+
+
+                    if (container.requestFullscreen) {
+
+                        container.requestFullscreen();
+
+                    } else if (
+                        container.webkitRequestFullscreen
+                    ) {
+
+                        container.webkitRequestFullscreen();
+
+                    } else if (
+                        container.msRequestFullscreen
+                    ) {
+
+                        container.msRequestFullscreen();
+
+                    }
+
+                }
+            );
+
+        })();
+    </script>
+
+</body>
+
+</html>

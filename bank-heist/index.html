@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Bank Heist</title>
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+    }
+
+    #game-container {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        background: #000;
+    }
+
+    #unity-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #000;
+    }
+
+    #loading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background: #000;
+        color: white;
+        font-family: Arial, sans-serif;
+        z-index: 10;
+    }
+
+    #loading-title {
+        font-size: 32px;
+        font-weight: bold;
+        margin-bottom: 25px;
+    }
+
+    #loading-text {
+        font-size: 16px;
+        margin-bottom: 15px;
+        opacity: 0.85;
+    }
+
+    #progress-container {
+        width: min(500px, 70vw);
+        height: 12px;
+        background: #222;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    #progress-bar {
+        width: 0%;
+        height: 100%;
+        background: white;
+        transition: width 0.15s;
+    }
+
+    #error {
+        display: none;
+        max-width: 700px;
+        padding: 20px;
+        color: #ff5555;
+        text-align: center;
+        white-space: pre-wrap;
+    }
+</style>
+
+</head>
+
+<body>
+
+<div id="game-container">
+
+<div id="loading">
+    <div id="loading-title">Bank Heist</div>
+    <div id="loading-text">Loading game...</div>
+
+    <div id="progress-container">
+        <div id="progress-bar"></div>
+    </div>
+
+    <div id="error"></div>
+</div>
+
+<canvas id="unity-canvas" tabindex="-1"></canvas>
+
+</div>
+
+<!-- ========================================================= -->
+
+<!-- CRAZYGAMES SDK SHIM                                       -->
+
+<!-- ========================================================= -->
+
+<script>
+    Object.defineProperty(document, 'URL', {
+        get: () => 'https://www.crazygames.com/game/bank-heist',
+        configurable: true
+    });
+
+    Object.defineProperty(document, 'documentURI', {
+        get: () => 'https://www.crazygames.com/game/bank-heist',
+        configurable: true
+    });
+
+    var msgQueue = [];
+    var gameInstance = null;
+
+    function sendToUnity(obj, method, param) {
+        if (gameInstance) {
+            try {
+                gameInstance.SendMessage(obj, method, param);
+            } catch (e) {
+                console.warn(
+                    "CrazyGames SendMessage failed:",
+                    obj,
+                    method,
+                    param,
+                    e
+                );
+            }
+        } else {
+            msgQueue.push([obj, method, param]);
+        }
+    }
+
+    window.unityInstance = {
+        SendMessage: sendToUnity
+    };
+
+    var sdk = {
+
+        init: function(cfg) {
+
+            console.log("CrazyGames SDK shim: init()");
+
+            if (cfg && cfg.crazySDKObjectName) {
+                sendToUnity(
+                    cfg.crazySDKObjectName,
+                    'OnSDKInit'
+                );
+            }
+
+            return true;
+        },
+
+        gameplayStart: function() {
+            console.log("CrazyGames SDK shim: gameplayStart()");
+            return true;
+        },
+
+        gameplayStop: function() {
+            console.log("CrazyGames SDK shim: gameplayStop()");
+            return true;
+        },
+
+        happytime: function() {
+            console.log("CrazyGames SDK shim: happytime()");
+            return true;
+        },
+
+        requestAd: function() {
+
+            console.log("CrazyGames SDK shim: requestAd()");
+
+            setTimeout(function() {
+
+                sendToUnity(
+                    'CrazyGames',
+                    'OnAdCompleted'
+                );
+
+                sendToUnity(
+                    'CrazyGames',
+                    'OnAdFinished',
+                    'true'
+                );
+
+            }, 50);
+
+            return true;
+        },
+
+        requestBanners: function() {
+            console.log("CrazyGames SDK shim: requestBanners()");
+            return true;
+        },
+
+        requestInviteUrl: function() {
+            console.log("CrazyGames SDK shim: requestInviteUrl()");
+            return true;
+        },
+
+        screenshotReceived: function() {
+            console.log("CrazyGames SDK shim: screenshotReceived()");
+            return true;
+        }
+    };
+
+    window.Crazygames = sdk;
+    window.CrazyGames = sdk;
+
+    document
+        .getElementById('unity-canvas')
+        .addEventListener('webglcontextlost', function(e) {
+            e.preventDefault();
+            console.warn("Unity WebGL context lost.");
+        });
+
+    console.log("CrazyGames SDK shim loaded.");
+</script>
+
+<!-- ========================================================= -->
+
+<!-- UNITY LOADER + SPLIT FILE MERGER                          -->
+
+<!-- ========================================================= -->
+
+<script>
+    const canvas = document.querySelector("#unity-canvas");
+    const loading = document.querySelector("#loading");
+    const loadingText = document.querySelector("#loading-text");
+    const progressBar = document.querySelector("#progress-bar");
+    const errorBox = document.querySelector("#error");
+
+    const buildUrl = "Build";
+
+    const loaderUrl =
+        buildUrl +
+        "/aa0f78c6090276d67bc0fef3ec21c0a2.loader.js";
+
+    /*
+     * Original files:
+     *
+     * c9737a21d609ee1839a5620c2514803a.data
+     * a4d2a4e4d7b4b4cad8f2e5a08bbe9ed3.wasm
+     *
+     * were split into:
+     *
+     * DATA: 3 parts
+     * WASM: 4 parts
+     */
+
+    const dataBase =
+        "c9737a21d609ee1839a5620c2514803a.data";
+
+    const wasmBase =
+        "a4d2a4e4d7b4b4cad8f2e5a08bbe9ed3.wasm";
+
+    const DATA_PARTS = 3;
+    const WASM_PARTS = 4;
+
+    /*
+     * Fetch every part and merge them into one Blob.
+     */
+    async function mergeSplitFile(filename, partCount, label) {
+
+        console.log(
+            "[Split Loader] Loading " +
+            label +
+            " (" +
+            partCount +
+            " parts)"
+        );
+
+        const buffers = [];
+        let totalSize = 0;
+
+        for (let i = 0; i < partCount; i++) {
+
+            const partName =
+                filename +
+                ".part" +
+                String(i).padStart(3, "0");
+
+            const url =
+                buildUrl +
+                "/" +
+                partName;
+
+            console.log(
+                "[Split Loader] Fetching:",
+                url
+            );
+
+            loadingText.textContent =
+                "Loading " +
+                label +
+                " part " +
+                (i + 1) +
+                " of " +
+                partCount +
+                "...";
+
+            const response = await fetch(
+                url,
+                {
+                    cache: "force-cache"
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    "Failed to load " +
+                    url +
+                    " (HTTP " +
+                    response.status +
+                    ")"
+                );
+            }
+
+            const buffer =
+                await response.arrayBuffer();
+
+            buffers.push(buffer);
+
+            totalSize += buffer.byteLength;
+
+            console.log(
+                "[Split Loader] Loaded",
+                partName,
+                buffer.byteLength,
+                "bytes"
+            );
+        }
+
+        /*
+         * Combine all parts in the original order.
+         */
+        const merged =
+            new Uint8Array(totalSize);
+
+        let offset = 0;
+
+        for (const buffer of buffers) {
+
+            merged.set(
+                new Uint8Array(buffer),
+                offset
+            );
+
+            offset += buffer.byteLength;
+        }
+
+        /*
+         * Create a Blob URL that Unity can load
+         * exactly like the original file.
+         */
+        const blob =
+            new Blob(
+                [merged],
+                {
+                    type: "application/octet-stream"
+                }
+            );
+
+        const blobUrl =
+            URL.createObjectURL(blob);
+
+        console.log(
+            "[Split Loader] Merged " +
+            label +
+            ": " +
+            totalSize +
+            " bytes"
+        );
+
+        return blobUrl;
+    }
+
+    function showError(message) {
+
+        loadingText.style.display = "none";
+
+        document.querySelector(
+            "#progress-container"
+        ).style.display = "none";
+
+        errorBox.style.display = "block";
+        errorBox.textContent = message;
+    }
+
+    /*
+     * Load the split files first.
+     */
+    async function startUnity() {
+
+        try {
+
+            loadingText.textContent =
+                "Preparing game files...";
+
+            /*
+             * Merge DATA.
+             */
+            const dataUrl =
+                await mergeSplitFile(
+                    dataBase,
+                    DATA_PARTS,
+                    "game data"
+                );
+
+            /*
+             * Merge WASM.
+             */
+            const wasmUrl =
+                await mergeSplitFile(
+                    wasmBase,
+                    WASM_PARTS,
+                    "WASM"
+                );
+
+            console.log(
+                "[Split Loader] All files merged."
+            );
+
+            loadingText.textContent =
+                "Loading Unity...";
+
+            /*
+             * Unity configuration.
+             */
+            const config = {
+
+                dataUrl: dataUrl,
+
+                frameworkUrl:
+                    buildUrl +
+                    "/293b03160228d84edef6578ab0afb8b3.framework.js",
+
+                codeUrl: wasmUrl,
+
+                streamingAssetsUrl:
+                    window.location.origin +
+                    "/games/bank-heist/StreamingAssets",
+
+                companyName: "Bank Heist",
+                productName: "Bank Heist",
+                productVersion: "1.0",
+
+                showBanner: false
+            };
+
+            /*
+             * Load Unity's normal loader.
+             */
+            const script =
+                document.createElement("script");
+
+            script.src = loaderUrl;
+
+            script.onload = function() {
+
+                console.log(
+                    "Unity loader loaded."
+                );
+
+                if (
+                    typeof createUnityInstance !==
+                    "function"
+                ) {
+
+                    showError(
+                        "Unity loader loaded, but createUnityInstance was not found."
+                    );
+
+                    return;
+                }
+
+                /*
+                 * Start Unity.
+                 */
+                createUnityInstance(
+                    canvas,
+                    config,
+                    function(progress) {
+
+                        const percent =
+                            Math.round(
+                                progress * 100
+                            );
+
+                        progressBar.style.width =
+                            percent + "%";
+
+                        loadingText.textContent =
+                            "Loading Bank Heist... " +
+                            percent +
+                            "%";
+                    }
+                )
+                .then(function(instance) {
+
+                    /*
+                     * Connect the real Unity instance
+                     * to the CrazyGames shim.
+                     */
+                    gameInstance = instance;
+
+                    console.log(
+                        "Bank Heist Unity instance initialized."
+                    );
+
+                    /*
+                     * Send queued messages.
+                     */
+                    while (
+                        msgQueue.length > 0
+                    ) {
+
+                        var msg =
+                            msgQueue.shift();
+
+                        try {
+
+                            gameInstance.SendMessage(
+                                msg[0],
+                                msg[1],
+                                msg[2]
+                            );
+
+                        } catch (e) {
+
+                            console.warn(
+                                "Queued Unity message failed:",
+                                msg,
+                                e
+                            );
+                        }
+                    }
+
+                    loading.style.display =
+                        "none";
+
+                    canvas.focus();
+
+                })
+                .catch(function(message) {
+
+                    console.error(
+                        "Unity initialization failed:",
+                        message
+                    );
+
+                    showError(
+                        "Bank Heist failed to start:\n\n" +
+                        message
+                    );
+                });
+            };
+
+            script.onerror = function() {
+
+                showError(
+                    "Could not load the Unity loader:\n\n" +
+                    loaderUrl
+                );
+            };
+
+            document.body.appendChild(script);
+
+        } catch (error) {
+
+            console.error(
+                "[Split Loader] Error:",
+                error
+            );
+
+            showError(
+                "Bank Heist failed to load the game files:\n\n" +
+                error.message
+            );
+        }
+    }
+
+    startUnity();
+</script>
+
+</body>
+</html>
